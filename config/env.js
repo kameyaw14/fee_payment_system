@@ -3,12 +3,15 @@ import {config} from 'dotenv';
 config({ path: `.env.${process.env.NODE_ENV || "development"}.local` });
 
 export const { 
+    SYSTEM_NAME,
       PORT,
   SERVER_URL,
   NODE_ENV,
   MONGO_URI,
   JWT_SECRET,
   JWT_EXPIRES_IN,
+  JWT_REFRESH_SECRET,
+  JWT_REFRESH_EXPIRES_IN,
   ARCJET_KEY,
   ARCJET_ENV,
   QSTASH_URL,

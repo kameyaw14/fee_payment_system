@@ -5,10 +5,11 @@ import cors from "cors";
 import helmet from "helmet";
 import connectCloudinary from "./config/connectCloudinary.js";
 import connectDB from "./db/connectDb.js";
-import { PRODUCTION_URL } from "./config/env.js";
+import { PRODUCTION_URL, SYSTEM_NAME } from "./config/env.js";
 import userRouter from "./routes/userRoutes.js";
 import errorMiddleware from "./middleware/error.js";
 import arcjetMiddleware from "./middleware/arcjet.js";
+import schoolRouter from "./routes/schoolRoutes.js";
 
 
 
@@ -57,11 +58,12 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/v1", userRouter);
+app.use("/api/v1/school", schoolRouter);
 
 app.get("/", arcjetMiddleware, (req, res) => {
   res.status(200).json({
     success: true,
-    message: "zenius server running!!",
+    message:  `${SYSTEM_NAME} server running!!`,
     environment: process.env.NODE_ENV || "development",
     timestamp: new Date().toISOString(),
   });
@@ -75,7 +77,7 @@ app.use((req, res) => {
   });
 });
 
-app.use(arcjetMiddleware)
+// app.use(arcjetMiddleware)
 
 app.use(errorMiddleware)
 
@@ -86,7 +88,7 @@ const startServer = async () => {
       console.log(`Server running in ${process.env.NODE_ENV || "development"} mode`);
       console.log(`Server is running on http://localhost:${PORT}`);
       console.log(`Allowed client URL: ${process.env.CLIENT_URL}`);
-      console.log(`Allowed admin URL: ${process.env.ADMIN_URL}`);
+      console.log(`Allowed admin URL: ${process.env.ADMIN_CLIENT_URL}`);
       console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? "Set" : "Missing"}`);
       console.log(`JWT_REFRESH_SECRET: ${process.env.JWT_REFRESH_SECRET ? "Set" : "Missing"}`);
     });

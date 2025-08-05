@@ -14,7 +14,7 @@ const arcjetMiddleware = async (req, res, next) => {
       if (decision.reason.isBot()) {
         return res.status(403).json({
           success: false,
-          message: "Access denied for bots.",
+          message: "Access denied for botws.",
         });
       }
     //   if(decision.ip.isHosting()){
