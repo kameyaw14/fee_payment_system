@@ -1,3 +1,4 @@
+// middleware/auth.js
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/env.js';
 import School from '../models/School.js';
@@ -15,7 +16,7 @@ export const authenticateSchool = async (req, res, next) => {
       throw new Error('School not found');
     }
 
-    req.school = { id: school._id, email: school.email };
+    req.user = { id: school._id, email: school.email }; // Changed from req.school to req.user
     next();
   } catch (error) {
     res.status(401).json({

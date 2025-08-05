@@ -70,7 +70,7 @@ app.get("/", arcjetMiddleware, (req, res) => {
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use(arcjetMiddleware, (req, res) => {
   res.status(404).json({
     success: false,
     message: "Endpoint does not exist.",

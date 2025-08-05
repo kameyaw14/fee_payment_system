@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   recipient: { type: String, required: true, trim: true },
   type: {
     type: String,
-    enum: ['payment_success', 'payment_failure', 'refund_approved', 'refund_rejected', 'fee_due',"school_registration", "login_failure"],
+    enum: ['payment_success', 'payment_failure', 'refund_approved', 'refund_rejected', 'fee_due',"school_registration", "login_failure","student_added","student_added_admin"],
     required: true,
   },
   message: { type: String, required: true },

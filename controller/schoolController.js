@@ -7,7 +7,8 @@ import School from "../models/School.js";
 import TransactionLog from "../models/TransactionLog.js";
 import Notification from "../models/Notification.js";
 import RefreshToken from "../models/RefreshToken.js";
-import { sendWelcomeEmail, sendFailedLoginEmail } from "../utils/email.js";
+import Student from '../models/Student.js';
+import { sendWelcomeEmail, sendFailedLoginEmail, sendStudentWelcomeEmail, sendAdminStudentAddedEmail } from "../utils/email.js";
 import {
   JWT_SECRET,
   JWT_REFRESH_SECRET,
@@ -132,7 +133,9 @@ export const register = async (req, res) => {
     try {
       console.log("Sending welcome email to:", school.email);
       await sendWelcomeEmail(school);
-      console.log("Creating Notification document:", { recipient: school.email });
+      console.log("Creating Notification document:", {
+        recipient: school.email,
+      });
       const notification = new Notification({
         recipient: school.email,
         type: "school_registration",
@@ -144,7 +147,10 @@ export const register = async (req, res) => {
       await notification.save();
       console.log("Notification saved:", notification._id);
     } catch (notificationError) {
-      console.error("Non-critical error (notification/email):", notificationError);
+      console.error(
+        "Non-critical error (notification/email):",
+        notificationError
+      );
       // Continue despite notification/email failure
     }
 
@@ -177,12 +183,14 @@ export const register = async (req, res) => {
   }
 };
 
-
-
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    console.log("Login attempt:", { email, ip: req.ip, userAgent: req.headers["user-agent"] });
+    console.log("Login attempt:", {
+      email,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
 
     const missingFields = [];
     if (!email) missingFields.push("email");
@@ -216,10 +224,17 @@ export const login = async (req, res, next) => {
     const isMatch = await bcrypt.compare(password, school.password);
     if (!isMatch) {
       console.log("Password mismatch for school:", school._id);
-      await logFailedLogin(email, req.ip, req.headers["user-agent"], school._id); // Pass school._id instead of null
+      await logFailedLogin(
+        email,
+        req.ip,
+        req.headers["user-agent"],
+        school._id
+      ); // Pass school._id instead of null
       console.log("Sending failed login email to:", school.email);
       await sendFailedLoginEmail(school, req.ip, new Date());
-      console.log("Creating Notification document for login failure:", { recipient: school.email });
+      console.log("Creating Notification document for login failure:", {
+        recipient: school.email,
+      });
       await new Notification({
         recipient: school.email,
         type: "login_failure",
@@ -285,5 +300,219 @@ const logFailedLogin = async (email, ip, deviceId, schoolId) => {
   } catch (error) {
     console.error("Failed to log failed login:", error);
     // Swallow the error to prevent disrupting the login response
+  }
+};
+
+export const addStudent = async (req, res) => {
+  let session = null;
+  try {
+    // Start MongoDB session
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    const {
+      name,
+      email,
+      password,
+      phone,
+      studentId,
+      department,
+      yearOfStudy,
+      registrationInfo,
+      courses,
+    } = req.body;
+
+    // Validate inputs
+    const missingFields = [];
+    if (!name) missingFields.push('name');
+    if (!email) missingFields.push('email');
+    if (!password) missingFields.push('password');
+    if (!studentId) missingFields.push('studentId');
+    if (!department) missingFields.push('department');
+    if (!yearOfStudy) missingFields.push('yearOfStudy');
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    if (!validator.isEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    if (phone && !validator.isMobilePhone(phone, 'any')) {
+      throw new Error('Invalid phone number format');
+    }
+
+    if (
+      !validator.isStrongPassword(password, {
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 1,
+      })
+    ) {
+      throw new Error(
+        'Password must be at least 8 characters long and include uppercase, lowercase, numbers, and symbols.'
+      );
+    }
+
+    const allowedDepartments = ['Computer Science', 'Engineering', 'Business', 'Arts', 'Sciences', 'Medicine'];
+    if (!allowedDepartments.includes(department)) {
+      throw new Error(`Department must be one of: ${allowedDepartments.join(', ')}`);
+    }
+
+    const allowedYears = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
+    if (!allowedYears.includes(yearOfStudy)) {
+      throw new Error(`Year of study must be one of: ${allowedYears.join(', ')}`);
+    }
+
+    const allowedCourses = ['CS101', 'ENG201', 'BUS301', 'ART101', 'SCI201', 'MED101'];
+    if (courses && courses.length > 0) {
+      for (const course of courses) {
+        if (!allowedCourses.includes(course)) {
+          throw new Error(`Course ${course} is not valid. Must be one of: ${allowedCourses.join(', ')}`);
+        }
+      }
+    }
+
+    // Get school from JWT
+    const schoolId = req.user.id; // From authenticateSchool middleware
+    const school = await School.findById(schoolId).session(session);
+    if (!school) {
+      throw new Error('School not found');
+    }
+
+    // Validate studentId format (e.g., KNUST-123)
+    const studentIdRegex = new RegExp(`^${school.name}-\\d+$`);
+    if (!studentIdRegex.test(studentId)) {
+      throw new Error(`Student ID must follow format: ${school.name}-<number>`);
+    }
+
+    // Check for duplicate email or studentId
+    const existingStudent = await Student.findOne({
+      $or: [{ email }, { $and: [{ schoolId, studentId }] }],
+    }).session(session);
+    if (existingStudent) {
+      throw new Error('Student email or studentId already exists');
+    }
+
+    // Create student
+    console.log('Creating Student document:', { name, email, studentId });
+    const student = new Student({
+      schoolId,
+      name,
+      email,
+      password,
+      phone,
+      studentId,
+      department,
+      yearOfStudy,
+      registrationInfo: {
+        enrollmentDate: registrationInfo?.enrollmentDate || '',
+        program: registrationInfo?.program || '',
+        emergencyContact: registrationInfo?.emergencyContact || '',
+        studentType: registrationInfo?.studentType || '',
+        guardianName: registrationInfo?.guardianName || '',
+      },
+      courses: courses || [],
+    });
+    await student.save({ session });
+    console.log('Student saved:', student._id);
+
+    // Update school's students array
+    await School.updateOne(
+      { _id: schoolId },
+      { $addToSet: { students: student._id } },
+      { session }
+    );
+    console.log('School updated with student ID:', student._id);
+
+    // Log transaction
+    console.log('Creating TransactionLog document:', { schoolId, studentId: student._id });
+    const transactionLog = new TransactionLog({
+      schoolId,
+      action: 'student_added',
+      metadata: {
+        ip: req.ip,
+        deviceId: req.headers['user-agent'],
+        adminId: schoolId, // Track who added the student
+        studentId: student._id,
+      },
+    });
+    await transactionLog.save({ session });
+    console.log('TransactionLog saved:', transactionLog._id);
+
+    // Commit transaction
+    await session.commitTransaction();
+
+    // Send emails and log notifications
+    try {
+      console.log('Sending student welcome email to:', email);
+      await sendStudentWelcomeEmail(student, school, password); // Pass plain-text password
+      console.log('Creating Notification document for student:', { recipient: email });
+      const studentNotification = new Notification({
+        recipient: email,
+        type: 'student_added',
+        message: `Student ${name} added to ${school.name}`,
+        schoolId,
+        studentId: student._id,
+        status: 'sent',
+        sentAt: new Date(),
+      });
+      await studentNotification.save();
+      console.log('Student Notification saved:', studentNotification._id);
+
+      console.log('Sending admin notification email to:', school.email);
+      await sendAdminStudentAddedEmail(school, student);
+      console.log('Creating Notification document for admin:', { recipient: school.email });
+      const adminNotification = new Notification({
+        recipient: school.email,
+        type: 'student_added_admin',
+        message: `Student ${name} added to your school`,
+        schoolId,
+        studentId: student._id,
+        status: 'sent',
+        sentAt: new Date(),
+      });
+      await adminNotification.save();
+      console.log('Admin Notification saved:', adminNotification._id);
+    } catch (notificationError) {
+      console.error('Non-critical error (notification/email):', notificationError);
+    }
+
+    // End session
+    if (session) {
+      session.endSession();
+    }
+
+    // Increment Prometheus counter (uncomment when set up)
+    // prometheus.register.getSingleMetric('students_added_total').inc();
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        studentId: student.studentId,
+        department: student.department,
+        yearOfStudy: student.yearOfStudy,
+        phone: student.phone,
+        registrationInfo: student.registrationInfo,
+        courses: student.courses,
+      },
+    });
+  } catch (error) {
+    if (session && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    if (session) {
+      session.endSession();
+    }
+    console.error('Add student error:', error);
+    return res.status(error.statusCode || 400).json({
+      success: false,
+      message: error.message || 'Internal server error',
+    });
   }
 };
