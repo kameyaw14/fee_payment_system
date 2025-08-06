@@ -5,6 +5,10 @@ import validator from "validator";
 import Student from "../models/Student.js";
 import TransactionLog from "../models/TransactionLog.js";
 import Notification from "../models/Notification.js";
+import School from "../models/School.js"
+import Payment from "../models/Payment.js"
+import Receipt from "../models/Receipt.js"
+import Fee from "../models/Fee.js"
 import StudentRefreshToken from "../models/StudentRefreshToken.js";
 import {
   sendStudentLoginSuccessEmail,
@@ -202,6 +206,7 @@ export const login = async (req, res) => {
         name: student.name,
         email: student.email,
         studentId: student.studentId,
+        schoolId: student.schoolId,
         department: student.department,
         yearOfStudy: student.yearOfStudy,
       },
@@ -248,6 +253,155 @@ const logFailedLogin = async (email, ip, deviceId, studentId, schoolId, failedAt
       event: "log_failed_login_error",
       error: error.message,
       timestamp: new Date().toISOString(),
+    });
+  }
+};
+
+export const getDashboard = async (req, res) => {
+  try {
+    const { id: studentId, schoolId, email } = req.user;
+    const { data } = req.query; // Optional: "payments" or "receipts"
+
+    console.log("Student dashboard access:", {
+      event: "student_dashboard_access",
+      studentId,
+      email,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      timestamp: new Date().toISOString(),
+    });
+
+    // Verify student exists in School.students array
+    const school = await School.findOne({ _id: schoolId, students: studentId });
+    if (!school) {
+      console.error("Student not found in school:", {
+        event: "student_dashboard_error",
+        studentId,
+        schoolId,
+        error: "Student not associated with school",
+        timestamp: new Date().toISOString(),
+      });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    // Calculate fraud score based on access frequency (last 10 minutes)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const accessAttempts = await TransactionLog.countDocuments({
+      action: "student_dashboard_access",
+      studentId,
+      createdAt: { $gte: tenMinutesAgo },
+    });
+    const fraudScore = Math.min(accessAttempts * 10, 100);
+
+    // Log dashboard access
+    await new TransactionLog({
+      studentId,
+      schoolId,
+      action: "student_dashboard_access",
+      metadata: {
+        ip: req.ip,
+        deviceId: req.headers["user-agent"],
+        fraudScore,
+      },
+    }).save();
+
+    // Fetch student data
+    const student = await Student.findById(studentId).select(
+      "_id name email studentId department yearOfStudy courses"
+    );
+    if (!student) {
+      console.error("Student not found:", {
+        event: "student_dashboard_error",
+        studentId,
+        error: "Student not found",
+        timestamp: new Date().toISOString(),
+      });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    // Initialize response data
+    let responseData = {
+      student: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        studentId: student.studentId,
+        department: student.department,
+        yearOfStudy: student.yearOfStudy,
+        courses: student.courses,
+      },
+      payments: [],
+      receipts: [],
+    };
+
+    // Fetch payments (if not restricted to receipts)
+    if (!data || data === "payments") {
+      const payments = await Payment.find({ studentId, schoolId })
+        .populate({
+          path: "feeId",
+          select: "feeType academicSession dueDate",
+        })
+        .select("_id amount feeId paymentProvider status receiptUrl createdAt");
+      responseData.payments = payments.map((payment) => ({
+        _id: payment._id,
+        amount: payment.amount,
+        feeId: payment.feeId._id,
+        feeDetails: {
+          feeType: payment.feeId.feeType,
+          academicSession: payment.feeId.academicSession,
+          dueDate: payment.feeId.dueDate,
+        },
+        paymentProvider: payment.paymentProvider,
+        status: payment.status,
+        receiptUrl: payment.receiptUrl,
+        createdAt: payment.createdAt,
+      }));
+    }
+
+    // Fetch receipts (if not restricted to payments)
+    if (!data || data === "receipts") {
+      const receipts = await Receipt.find({ studentId, schoolId }).select(
+        "_id receiptNumber amount date pdfUrl branding"
+      );
+      responseData.receipts = receipts.map((receipt) => ({
+        _id: receipt._id,
+        receiptNumber: receipt.receiptNumber,
+        amount: receipt.amount,
+        date: receipt.date,
+        pdfUrl: receipt.pdfUrl,
+        branding: receipt.branding,
+      }));
+    }
+
+    // Handle empty payments/receipts
+    if (responseData.payments.length === 0 && responseData.receipts.length === 0) {
+      responseData.message = "No payments or receipts found for this student.";
+    }
+
+    // Increment Prometheus counter (uncomment when set up)
+    // prometheus.register.getSingleMetric('student_dashboard_access_total').inc();
+
+    return res.status(200).json({
+      success: true,
+      data: responseData,
+    });
+  } catch (error) {
+    console.error("Student dashboard error:", {
+      event: "student_dashboard_error",
+      studentId: req.user?.id,
+      email: req.user?.email,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Internal server error",
     });
   }
 };

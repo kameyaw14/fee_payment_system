@@ -1,107 +1,307 @@
 {
   "info": {
-    "name": "Student Login API",
-    "_postman_id": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
-    "description": "Collection for testing the student login endpoint",
+    "name": "Student Dashboard API",
+    "_postman_id": "f6g7a8b9-0d1e-2f3g-4a5b-6c7d8e9f0a1b",
+    "description": "Collection for testing the student dashboard endpoint",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Student Login",
+      "name": "Get Dashboard",
       "request": {
-        "method": "POST",
+        "method": "GET",
         "header": [
           {
-            "key": "Content-Type",
-            "value": "application/json"
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
           }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"email\": \"student@example.com\", \"password\": \"Password123!\"}"
-        },
         "url": {
-          "raw": "{{base_url}}/api/v1/students/login",
+          "raw": "{{base_url}}/api/v1/students/dashboard",
           "host": ["{{base_url}}"],
-          "path": ["api", "v1", "students", "login"]
+          "path": ["api", "v1", "students", "dashboard"]
         },
-        "description": "Test student login with email and password"
+        "description": "Test successful dashboard access"
       },
       "response": [
         {
           "name": "Success",
           "originalRequest": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"student@example.com\", \"password\": \"Password123!\"}"
-            },
             "url": {
-              "raw": "{{base_url}}/api/v1/students/login",
+              "raw": "{{base_url}}/api/v1/students/dashboard",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "students", "login"]
+              "path": ["api", "v1", "students", "dashboard"]
             }
           },
           "status": "OK",
           "code": 200,
           "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"_id\": \"student_id\", \"name\": \"Student Name\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\"}, \"token\": \"jwt_token\", \"refreshToken\": \"refresh_token\"}"
+          "body": "{\"success\": true, \"data\": {\"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\", \"courses\": [\"CS101\", \"ENG201\"]}, \"payments\": [{\"_id\": \"payment_id\", \"amount\": 5000, \"feeId\": \"fee_id\", \"feeDetails\": {\"feeType\": \"Tuition\", \"academicSession\": \"2025/2026\", \"dueDate\": \"2025-12-01T00:00:00Z\"}, \"paymentProvider\": \"Paystack\", \"status\": \"confirmed\", \"receiptUrl\": \"cloudinary_url\", \"createdAt\": \"2025-08-06T00:00:00Z\"}], \"receipts\": [{\"_id\": \"receipt_id\", \"receiptNumber\": \"REC-001\", \"amount\": 5000, \"date\": \"2025-08-06T00:00:00Z\", \"pdfUrl\": \"cloudinary_url\", \"branding\": {\"logoUrl\": \"school_logo_url\", \"primaryColor\": \"#000000\"}}]}}"
         },
         {
-          "name": "Invalid Credentials",
+          "name": "No Payments or Receipts",
           "originalRequest": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"student@example.com\", \"password\": \"WrongPassword\"}"
-            },
             "url": {
-              "raw": "{{base_url}}/api/v1/students/login",
+              "raw": "{{base_url}}/api/v1/students/dashboard",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "students", "login"]
+              "path": ["api", "v1", "students", "dashboard"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": true, \"data\": {\"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\", \"courses\": [\"CS101\", \"ENG201\"]}, \"payments\": [], \"receipts\": [], \"message\": \"No payments or receipts found for this student.\"}}"
+        }
+      ]
+    },
+    {
+      "name": "Get Payments Only",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/students/dashboard?data=payments",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "students", "dashboard"],
+          "query": [
+            {
+              "key": "data",
+              "value": "payments"
+            }
+          ]
+        },
+        "description": "Test fetching only payments"
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/dashboard?data=payments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "dashboard"],
+              "query": [
+                {
+                  "key": "data",
+                  "value": "payments"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": true, \"data\": {\"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\", \"courses\": [\"CS101\", \"ENG201\"]}, \"payments\": [{\"_id\": \"payment_id\", \"amount\": 5000, \"feeId\": \"fee_id\", \"feeDetails\": {\"feeType\": \"Tuition\", \"academicSession\": \"2025/2026\", \"dueDate\": \"2025-12-01T00:00:00Z\"}, \"paymentProvider\": \"Paystack\", \"status\": \"confirmed\", \"receiptUrl\": \"cloudinary_url\", \"createdAt\": \"2025-08-06T00:00:00Z\"}], \"receipts\": []}}"
+        }
+      ]
+    },
+    {
+      "name": "Get Receipts Only",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/students/dashboard?data=receipts",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "students", "dashboard"],
+          "query": [
+            {
+              "key": "data",
+              "value": "receipts"
+            }
+          ]
+        },
+        "description": "Test fetching only receipts"
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/dashboard?data=receipts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "dashboard"],
+              "query": [
+                {
+                  "key": "data",
+                  "value": "receipts"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": true, \"data\": {\"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\", \"courses\": [\"CS101\", \"ENG201\"]}, \"payments\": [], \"receipts\": [{\"_id\": \"receipt_id\", \"receiptNumber\": \"REC-001\", \"amount\": 5000, \"date\": \"2025-08-06T00:00:00Z\", \"pdfUrl\": \"cloudinary_url\", \"branding\": {\"logoUrl\": \"school_logo_url\", \"primaryColor\": \"#000000\"}]}}}"
+        }
+      ]
+    },
+    {
+      "name": "Invalid Token",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer invalid_token"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/students/dashboard",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "students", "dashboard"]
+        },
+        "description": "Test dashboard with invalid token"
+      },
+      "response": [
+        {
+          "name": "Unauthorized",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_token"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "dashboard"]
             }
           },
           "status": "Unauthorized",
           "code": 401,
           "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Invalid credentials\"}"
+          "body": "{\"success\": false, \"message\": \"Unauthorized\"}"
+        }
+      ]
+    },
+    {
+      "name": "Rate Limit Exceeded",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/students/dashboard",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "students", "dashboard"]
         },
+        "description": "Test Arcjet rate limiting by sending multiple requests"
+      },
+      "response": [
         {
-          "name": "Too Many Attempts",
+          "name": "Rate Limit Exceeded",
           "originalRequest": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"student@example.com\", \"password\": \"WrongPassword\"}"
-            },
             "url": {
-              "raw": "{{base_url}}/api/v1/students/login",
+              "raw": "{{base_url}}/api/v1/students/dashboard",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "students", "login"]
+              "path": ["api", "v1", "students", "dashboard"]
             }
           },
-          "status": "Bad Request",
-          "code": 400,
+          "status": "Too Many Requests",
+          "code": 429,
           "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Too many failed login attempts. Please try again later.\"}"
+          "body": "{\"success\": false, \"message\": \"Rate limit exceeded. Please try again later.\"}"
+        }
+      ]
+    },
+    {
+      "name": "Bot Detection",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
+          },
+          {
+            "key": "User-Agent",
+            "value": "BotFramework/1.0"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/students/dashboard",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "students", "dashboard"]
+        },
+        "description": "Test Arcjet bot detection with a bot user-agent"
+      },
+      "response": [
+        {
+          "name": "Bot Denied",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "User-Agent",
+                "value": "BotFramework/1.0"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "dashboard"]
+            }
+          },
+          "status": "Forbidden",
+          "code": 403,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": false, \"message\": \"Access denied for bots.\"}"
         }
       ]
     }
@@ -110,6 +310,10 @@
     {
       "key": "base_url",
       "value": "http://localhost:5500"
+    },
+    {
+      "key": "jwt_token",
+      "value": "your_jwt_token_here"
     }
   ]
 }
