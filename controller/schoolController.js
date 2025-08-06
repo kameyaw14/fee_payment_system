@@ -448,7 +448,7 @@ export const addStudent = async (req, res) => {
     // Send emails and log notifications
     try {
       console.log('Sending student welcome email to:', email);
-      await sendStudentWelcomeEmail(student, school, password); // Pass plain-text password
+      await sendStudentWelcomeEmail(student, school, password, student.studentId); // Pass plain-text password
       console.log('Creating Notification document for student:', { recipient: email });
       const studentNotification = new Notification({
         recipient: email,

@@ -6,10 +6,10 @@ import helmet from "helmet";
 import connectCloudinary from "./config/connectCloudinary.js";
 import connectDB from "./db/connectDb.js";
 import { PRODUCTION_URL, SYSTEM_NAME } from "./config/env.js";
-import userRouter from "./routes/userRoutes.js";
 import errorMiddleware from "./middleware/error.js";
 import arcjetMiddleware from "./middleware/arcjet.js";
 import schoolRouter from "./routes/schoolRoutes.js";
+import studentRouter from "./routes/studentRoutes.js";
 
 
 
@@ -57,8 +57,8 @@ app.use(
 app.use(cors(corsOptions));
 app.use(express.json());
 
-app.use("/api/v1", userRouter);
 app.use("/api/v1/school", schoolRouter);
+app.use("/api/v1/students", studentRouter);
 
 app.get("/", arcjetMiddleware, (req, res) => {
   res.status(200).json({

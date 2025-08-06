@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { EMAIL_PASSWORD, SYSTEM_NAME } from "../config/env.js";
+import School from "../models/School.js";
 
 export const FROM_EMAIL = "kojoameyaw519@gmail.com";
 
@@ -36,14 +37,18 @@ export const sendWelcomeEmail = async (school) => {
   await transporter.sendMail(mailOptions);
 };
 
-export const sendFailedLoginEmail = async (school, ip, timestamp) => {
+export const sendFailedLoginEmail = async (user, ip, timestamp) => {
+  const school = user.schoolId ? await School.findById(user.schoolId) : user;
+  const name = user.name || school.name;
+  const email = user.email || school.email;
+  const type = user.schoolId ? "student" : "school";
   const mailOptions = {
     from: FROM_EMAIL,
-    to: school.email,
+    to: email,
     subject: `Failed Login Attempt for ${SYSTEM_NAME}`,
     html: `
-      <h1>Security Alert for ${school.name}</h1>
-      <p>A failed login attempt was detected for your account.</p>
+      <h1>Security Alert for ${name}</h1>
+      <p>A failed login attempt was detected for your ${type} account.</p>
       <p>Time: ${timestamp.toISOString()}</p>
       <p>IP Address: ${ip}</p>
       <p style="color: ${school.customFields.receiptBranding.primaryColor}">
@@ -60,7 +65,7 @@ export const sendFailedLoginEmail = async (school, ip, timestamp) => {
   await transporter.sendMail(mailOptions);
 };
 
-export const sendStudentWelcomeEmail = async (student, school, plainPassword) => {
+export const sendStudentWelcomeEmail = async (student, school, plainPassword, studentId) => {
   const mailOptions = {
     from: `"${school.name} Payment System" <${FROM_EMAIL}>`,
     to: student.email,
@@ -68,6 +73,7 @@ export const sendStudentWelcomeEmail = async (student, school, plainPassword) =>
     html: `
       <h1 style="color: ${school.customFields.receiptBranding.primaryColor}">Welcome, ${student.name}!</h1>
       <p>You have been added as a student at ${school.name}.</p>
+      <p><strong>Student ID:</strong> ${studentId}</p>
       <p><strong>Email:</strong> ${student.email}</p>
       <p><strong>Password:</strong> ${plainPassword}</p>
       <p style="color: red; font-weight: bold;">
@@ -100,6 +106,26 @@ export const sendAdminStudentAddedEmail = async (school, student) => {
       <p><strong>Year of Study:</strong> ${student.yearOfStudy}</p>
       <p>Manage students in your admin portal.</p>
       <p><a href="http://localhost:3000/admin">Admin Portal</a></p>
+    `,
+  };
+  await transporter.sendMail(mailOptions);
+};
+
+export const sendStudentLoginSuccessEmail = async (student) => {
+  const school = await School.findById(student.schoolId);
+  const mailOptions = {
+    from: `"${school.name} Payment System" <${FROM_EMAIL}>`,
+    to: student.email,
+    subject: `Successful Login to ${school.name}`,
+    html: `
+      <h1 style="color: ${school.customFields.receiptBranding.primaryColor}">Welcome Back, ${student.name}!</h1>
+      <p>You have successfully logged in to your ${school.name} account.</p>
+      <p>Access your dashboard to view payment history and courses: <a href="http://localhost:3000/dashboard">Dashboard</a></p>
+      ${
+        school.customFields.receiptBranding.logoUrl
+          ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" style="max-width: 200px;" />`
+          : ''
+      }
     `,
   };
   await transporter.sendMail(mailOptions);

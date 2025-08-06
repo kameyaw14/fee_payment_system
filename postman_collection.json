@@ -1,0 +1,115 @@
+{
+  "info": {
+    "name": "Student Login API",
+    "_postman_id": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+    "description": "Collection for testing the student login endpoint",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Student Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"student@example.com\", \"password\": \"Password123!\"}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/students/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "students", "login"]
+        },
+        "description": "Test student login with email and password"
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"student@example.com\", \"password\": \"Password123!\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "login"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": true, \"data\": {\"_id\": \"student_id\", \"name\": \"Student Name\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\"}, \"token\": \"jwt_token\", \"refreshToken\": \"refresh_token\"}"
+        },
+        {
+          "name": "Invalid Credentials",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"student@example.com\", \"password\": \"WrongPassword\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "login"]
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": false, \"message\": \"Invalid credentials\"}"
+        },
+        {
+          "name": "Too Many Attempts",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"student@example.com\", \"password\": \"WrongPassword\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "students", "login"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\"success\": false, \"message\": \"Too many failed login attempts. Please try again later.\"}"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5500"
+    }
+  ]
+}
