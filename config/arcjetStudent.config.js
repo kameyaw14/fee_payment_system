@@ -9,7 +9,7 @@ export const ajStudent = arcjet({
       mode: "LIVE",
       allow: [
         "CATEGORY:SEARCH_ENGINE",
-        "CATEGORY:USER_AGENT",
+        // "CATEGORY:USER_AGENT",
         "CATEGORY:API",
         "CATEGORY:TESTING",
         "CATEGORY:MONITORING",

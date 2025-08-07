@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { EMAIL_PASSWORD, SYSTEM_NAME } from "../config/env.js";
 import School from "../models/School.js";
 
-export const FROM_EMAIL = "anningbrown@gmail.com";
+export const FROM_EMAIL = "kojoameyaw519@gmail.com";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -10,6 +10,9 @@ const transporter = nodemailer.createTransport({
     user: FROM_EMAIL,
     pass: EMAIL_PASSWORD,
   },
+  tls:{
+    rejectUnauthorized: false
+  }
 });
 
 export const sendWelcomeEmail = async (school) => {
@@ -128,5 +131,30 @@ export const sendStudentLoginSuccessEmail = async (student) => {
       }
     `,
   };
+  await transporter.sendMail(mailOptions);
+};
+
+export const sendFeeAssignmentEmail = async (student, fee, dueDate) => {
+  const school = await School.findById(student.schoolId);
+  const mailOptions = {
+    from: `"${school.name} Payment System" <${FROM_EMAIL}>`,
+    to: student.email,
+    subject: `New Fee Assigned: ${fee.feeType}`,
+    html: `
+      <h1 style="color: ${school.customFields.receiptBranding.primaryColor}">Dear ${student.name},</h1>
+      <p>A new fee has been assigned to you by ${school.name}.</p>
+      <p><strong>Fee Type:</strong> ${fee.feeType}</p>
+      <p><strong>Amount:</strong> ${fee.amount}</p>
+      <p><strong>Due Date:</strong> ${dueDate.toISOString().split('T')[0]}</p>
+      <p><strong>Description:</strong> ${fee.description || 'N/A'}</p>
+      <p>Login to your dashboard to view details: <a href="http://localhost:3000/dashboard">Dashboard</a></p>
+      ${
+        school.customFields.receiptBranding.logoUrl
+          ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" style="max-width: 200px;" />`
+          : ''
+      }
+    `,
+  };
+
   await transporter.sendMail(mailOptions);
 };

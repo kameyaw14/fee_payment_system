@@ -5,7 +5,7 @@ const auditLogSchema = new mongoose.Schema(
     entityType: {
       type: String,
       required: true,
-      enum: ['Payment', 'Refund', 'Invoice', 'Fee', 'Student', 'School'],
+      enum: ['Payment', 'Refund', 'Invoice', 'Fee', 'Student', 'School',"FeeAssignment"],
     },
     entityId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -30,6 +30,7 @@ const auditLogSchema = new mongoose.Schema(
         'fee_assigned',
         'fee_created',
         'fee_updated',
+        'dashboard_accessed'
       ],
     },
     actorType: {

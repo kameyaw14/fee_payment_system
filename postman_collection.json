@@ -1,478 +1,418 @@
 {
   "info": {
-    "name": "School Dashboard API",
-    "_postman_id": "g7h8i9j0-1k2l-3m4n-5o6p-7q8r9s0t1u2v",
-    "description": "Collection for testing the school dashboard endpoint",
+    "name": "Fee Payment System API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Get Dashboard",
+      "name": "School Registration",
       "request": {
-        "method": "GET",
+        "method": "POST",
         "header": [
           {
-            "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
+            "key": "Content-Type",
+            "value": "application/json"
           }
         ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Test University\",\n  \"email\": \"test.university@example.com\",\n  \"password\": \"Password@123\",\n  \"contactDetails\": {\n    \"phone\": \"+1234567890\",\n    \"address\": \"123 University Ave\"\n  },\n  \"customFields\": {\n    \"feeStructure\": {},\n    \"receiptBranding\": {\n      \"logoUrl\": \"https://res.cloudinary.com/example/image/logo.png\",\n      \"primaryColor\": \"#1a73e8\"\n    }\n  },\n  \"paymentProviders\": [\n    {\n      \"provider\": \"Paystack\",\n      \"apiKey\": \"{{PAYSTACK_SECRET_KEY}}\"\n    }\n  ]\n}"
+        },
         "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"]
-        },
-        "description": "Test successful dashboard access"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [{\"_id\": \"payment_id\", \"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"studentId\": \"SCHOOL-123\"}, \"fee\": {\"_id\": \"fee_id\", \"feeType\": \"Tuition\", \"academicSession\": \"2025/2026\", \"dueDate\": \"2025-12-01T00:00:00Z\"}, \"amount\": 5000, \"paymentProvider\": \"Paystack\", \"status\": \"confirmed\", \"receiptUrl\": \"cloudinary_url\", \"createdAt\": \"2025-08-06T00:00:00Z\"}], \"students\": [{\"_id\": \"student_id\", \"name\": \"John Doe\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\", \"courses\": [\"CS101\", \"ENG201\"]}], \"fees\": [{\"_id\": \"fee_id\", \"feeType\": \"Tuition\", \"amount\": 5000, \"dueDate\": \"2025-12-01T00:00:00Z\", \"academicSession\": \"2025/2026\", \"allowPartialPayment\": true}], \"reports\": {\"totalPayments\": 10000, \"pendingPayments\": 2, \"confirmedPayments\": 5, \"studentCount\": 10, \"overdueFees\": 3, \"requestedRefunds\": 1, \"approvedRefunds\": 0}}}"
-        },
-        {
-          "name": "No Data",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [], \"students\": [], \"fees\": [], \"reports\": {}, \"message\": \"No data found for this school.\"}}"
+          "raw": "{{SERVER_URL}}/api/v1/school/register",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "register"]
         }
-      ]
+      },
+      "response": []
     },
     {
-      "name": "Get Payments Only",
+      "name": "School Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"test.university@example.com\",\n  \"password\": \"Password@123\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/school/login",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Add Student",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"Student@123\",\n  \"phone\": \"+1234567891\",\n  \"studentId\": \"STU001\",\n  \"name\": \"John Doe\",\n  \"department\": \"Computer Science\",\n  \"yearOfStudy\": \"Freshman\",\n  \"registrationInfo\": {\n    \"enrollmentDate\": \"2025-08-01\",\n    \"program\": \"BSc Computer Science\",\n    \"emergencyContact\": \"+1234567892\",\n    \"studentType\": \"Full-time\",\n    \"guardianName\": \"Jane Doe\"\n  },\n  \"courses\": [\"CS101\"]\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/school/students/add",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "students", "add"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Student Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"Student@123\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/students/login",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "students", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Fee",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feeType\": \"Tuition\",\n  \"amount\": 5000,\n  \"dueDate\": \"2025-09-01\",\n  \"academicSession\": \"2025/2026\",\n  \"allowPartialPayment\": true,\n  \"description\": \"First semester tuition fee\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/fee-assignment/create",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "fee-assignment", "create"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Assign Fee to Student",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feeId\": \"{{FEE_ID}}\",\n  \"studentId\": \"{{STUDENT_ID}}\",\n  \"dueDate\": \"2025-09-01\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/fee-assignment/assign",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "fee-assignment", "assign"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Student Fee Assignments",
       "request": {
         "method": "GET",
         "header": [
           {
             "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
+            "value": "Bearer {{STUDENT_TOKEN}}"
           }
         ],
         "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard?data=payments",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"],
+          "raw": "{{SERVER_URL}}/api/v1/fee-assignment/student",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "fee-assignment", "student"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Initialize Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feeId\": \"{{FEE_ID}}\",\n  \"amount\": 5000\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/payment/initialize",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "payment", "initialize"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reference\": \"{{PAYMENT_REFERENCE}}\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/payment/verify",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "payment", "verify"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Request Refund",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentId\": \"{{PAYMENT_ID}}\",\n  \"amount\": 2000,\n  \"reason\": \"Overpayment\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/refund/request",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "refund", "request"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Review Refund",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundId\": \"{{REFUND_ID}}\",\n  \"status\": \"approved\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/refund/review",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "refund", "review"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Audit Logs",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/audit/logs?entityType=Payment",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "audit", "logs"],
+          "query": [
+            {
+              "key": "entityType",
+              "value": "Payment"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Payment Webhook (Simulated)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"reference\": \"{{PAYMENT_REFERENCE}}\",\n    \"status\": \"success\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/payment/webhook",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "payment", "webhook"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Refund Webhook (Simulated)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"refund.processed\",\n  \"data\": {\n    \"transaction\": {\"reference\": \"{{PAYMENT_REFERENCE}}\"},\n    \"refunded_by\": \"{{REFUND_ID}}\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/refund/webhook",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "refund", "webhook"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Student Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/students/dashboard?data=payments",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "students", "dashboard"],
           "query": [
             {
               "key": "data",
               "value": "payments"
             }
           ]
-        },
-        "description": "Test fetching only payments"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard?data=payments",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"],
-              "query": [
-                {
-                  "key": "data",
-                  "value": "payments"
-                }
-              ]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [{\"_id\": \"payment_id\", \"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"studentId\": \"SCHOOL-123\"}, \"fee\": {\"_id\": \"fee_id\", \"feeType\": \"Tuition\", \"academicSession\": \"2025/2026\", \"dueDate\": \"2025-12-01T00:00:00Z\"}, \"amount\": 5000, \"paymentProvider\": \"Paystack\", \"status\": \"confirmed\", \"receiptUrl\": \"cloudinary_url\", \"createdAt\": \"2025-08-06T00:00:00Z\"}], \"students\": [], \"fees\": [], \"reports\": {}}}"
         }
-      ]
+      },
+      "response": []
     },
     {
-      "name": "Get Students Only",
+      "name": "Get Admin Dashboard",
       "request": {
         "method": "GET",
         "header": [
           {
             "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
+            "value": "Bearer {{SCHOOL_TOKEN}}"
           }
         ],
         "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard?data=students",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"],
-          "query": [
-            {
-              "key": "data",
-              "value": "students"
-            }
-          ]
-        },
-        "description": "Test fetching only students"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard?data=students",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"],
-              "query": [
-                {
-                  "key": "data",
-                  "value": "students"
-                }
-              ]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [], \"students\": [{\"_id\": \"student_id\", \"name\": \"John Doe\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\", \"courses\": [\"CS101\", \"ENG201\"]}], \"fees\": [], \"reports\": {}}}"
-        }
-      ]
-    },
-    {
-      "name": "Get Fees Only",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard?data=fees",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"],
-          "query": [
-            {
-              "key": "data",
-              "value": "fees"
-            }
-          ]
-        },
-        "description": "Test fetching only fees"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard?data=fees",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"],
-              "query": [
-                {
-                  "key": "data",
-                  "value": "fees"
-                }
-              ]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [], \"students\": [], \"fees\": [{\"_id\": \"fee_id\", \"feeType\": \"Tuition\", \"amount\": 5000, \"dueDate\": \"2025-12-01T00:00:00Z\", \"academicSession\": \"2025/2026\", \"allowPartialPayment\": true}], \"reports\": {}}}"
-        }
-      ]
-    },
-    {
-      "name": "Get Confirmed Payments",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard?status=confirmed",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"],
-          "query": [
-            {
-              "key": "status",
-              "value": "confirmed"
-            }
-          ]
-        },
-        "description": "Test fetching confirmed payments"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard?status=confirmed",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "confirmed"
-                }
-              ]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [{\"_id\": \"payment_id\", \"student\": {\"_id\": \"student_id\", \"name\": \"John Doe\", \"studentId\": \"SCHOOL-123\"}, \"fee\": {\"_id\": \"fee_id\", \"feeType\": \"Tuition\", \"academicSession\": \"2025/2026\", \"dueDate\": \"2025-12-01T00:00:00Z\"}, \"amount\": 5000, \"paymentProvider\": \"Paystack\", \"status\": \"confirmed\", \"receiptUrl\": \"cloudinary_url\", \"createdAt\": \"2025-08-06T00:00:00Z\"}], \"students\": [], \"fees\": [], \"reports\": {}}}"
-        }
-      ]
-    },
-    {
-      "name": "Get Fees by Academic Session",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard?academicSession=2025/2026",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"],
-          "query": [
-            {
-              "key": "academicSession",
-              "value": "2025/2026"
-            }
-          ]
-        },
-        "description": "Test fetching fees for a specific academic session"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard?academicSession=2025/2026",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"],
-              "query": [
-                {
-                  "key": "academicSession",
-                  "value": "2025/2026"
-                }
-              ]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"school\": {\"_id\": \"school_id\", \"name\": \"Example University\", \"email\": \"admin@example.com\", \"contactDetails\": {\"phone\": \"+233123456789\", \"address\": \"123 University Ave\"}, \"receiptBranding\": {\"logoUrl\": \"cloudinary_url\", \"primaryColor\": \"#000000\"}}, \"payments\": [], \"students\": [], \"fees\": [{\"_id\": \"fee_id\", \"feeType\": \"Tuition\", \"amount\": 5000, \"dueDate\": \"2025-12-01T00:00:00Z\", \"academicSession\": \"2025/2026\", \"allowPartialPayment\": true}], \"reports\": {}}}"
-        }
-      ]
-    },
-    {
-      "name": "Invalid Token",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer invalid_token"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard",
-          "host": ["{{base_url}}"],
+          "raw": "{{SERVER_URL}}/api/v1/school/dashboard",
+          "host": ["{{SERVER_URL}}"],
           "path": ["api", "v1", "school", "dashboard"]
-        },
-        "description": "Test dashboard with invalid token"
-      },
-      "response": [
-        {
-          "name": "Unauthorized",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer invalid_token"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"]
-            }
-          },
-          "status": "Unauthorized",
-          "code": 401,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Unauthorized\"}"
         }
-      ]
-    },
-    {
-      "name": "Rate Limit Exceeded",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"]
-        },
-        "description": "Test Arcjet rate limiting by sending multiple requests"
       },
-      "response": [
-        {
-          "name": "Rate Limit Exceeded",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"]
-            }
-          },
-          "status": "Too Many Requests",
-          "code": 429,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Rate limit exceeded. Please try again later.\"}"
-        }
-      ]
-    },
-    {
-      "name": "Bot Detection",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{school_jwt_token}}"
-          },
-          {
-            "key": "User-Agent",
-            "value": "BotFramework/1.0"
-          }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/school/dashboard",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "school", "dashboard"]
-        },
-        "description": "Test Arcjet bot detection with a bot user-agent"
-      },
-      "response": [
-        {
-          "name": "Bot Denied",
-          "originalRequest": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{school_jwt_token}}"
-              },
-              {
-                "key": "User-Agent",
-                "value": "BotFramework/1.0"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/school/dashboard",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "school", "dashboard"]
-            }
-          },
-          "status": "Forbidden",
-          "code": 403,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Access denied for bots.\"}"
-        }
-      ]
+      "response": []
     }
   ],
   "variable": [
     {
-      "key": "base_url",
+      "key": "SERVER_URL",
       "value": "http://localhost:5500"
     },
     {
-      "key": "school_jwt_token",
-      "value": "your_school_jwt_token_here"
+      "key": "PAYSTACK_SECRET_KEY",
+      "value": "sk_test_935feeae9c06b173473ece5a8f5e365105a7c596"
+    },
+    {
+      "key": "SCHOOL_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "STUDENT_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "FEE_ID",
+      "value": ""
+    },
+    {
+      "key": "STUDENT_ID",
+      "value": ""
+    },
+    {
+      "key": "PAYMENT_ID",
+      "value": ""
+    },
+    {
+      "key": "PAYMENT_REFERENCE",
+      "value": ""
+    },
+    {
+      "key": "REFUND_ID",
+      "value": ""
     }
   ]
 }

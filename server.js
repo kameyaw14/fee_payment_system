@@ -94,7 +94,7 @@ app.use(arcjetMiddleware, (req, res) => {
   });
 });
 
-// app.use(arcjetMiddleware)
+app.use(arcjetMiddleware)
 
 app.use(errorMiddleware)
 
