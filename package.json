@@ -11,6 +11,7 @@
     "@arcjet/inspect": "^1.0.0-beta.9",
     "@arcjet/node": "^1.0.0-beta.9",
     "@upstash/workflow": "^0.2.16",
+    "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
     "cookie-parser": "~1.4.4",
@@ -27,6 +28,7 @@
     "multer": "^2.0.2",
     "nodemailer": "^7.0.5",
     "prom-client": "^15.1.3",
+    "pdfkit": "^0.17.1",
     "validator": "^13.15.15"
   },
   "devDependencies": {

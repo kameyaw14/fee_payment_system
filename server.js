@@ -11,6 +11,10 @@ import errorMiddleware from "./middleware/error.js";
 import arcjetMiddleware from "./middleware/arcjet.js";
 import schoolRouter from "./routes/schoolRoutes.js";
 import studentRouter from "./routes/studentRoutes.js";
+import paymentRouter from "./routes/paymentRoute.js";
+import refundRouter from "./routes/refundRoute.js";
+import feeAssignRouter from "./routes/feeAssiRoute.js";
+import auditRouter from "./routes/auditRoute.js";
 
 
 
@@ -63,6 +67,10 @@ app.use(express.json());
 
 app.use("/api/v1/school", schoolRouter);
 app.use("/api/v1/students", studentRouter);
+app.use("/api/v1/payment", paymentRouter);
+app.use("/api/v1/refund", refundRouter)
+app.use("/api/v1/fee-assignment", feeAssignRouter);
+app.use("/api/v1/audit", auditRouter);
 
 app.get("/", arcjetMiddleware, (req, res) => {
   res.status(200).json({
