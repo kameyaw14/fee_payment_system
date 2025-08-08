@@ -7,8 +7,16 @@ import School from "../models/School.js";
 import TransactionLog from "../models/TransactionLog.js";
 import Notification from "../models/Notification.js";
 import RefreshToken from "../models/RefreshToken.js";
-import Student from '../models/Student.js';
-import { sendWelcomeEmail, sendFailedLoginEmail, sendStudentWelcomeEmail, sendAdminStudentAddedEmail } from "../utils/email.js";
+import Student from "../models/Student.js";
+import Payment from '../models/Payment.js'
+import Fee from '../models/Fee.js'
+import Refund from '../models/Refund.js'
+import {
+  sendWelcomeEmail,
+  sendFailedLoginEmail,
+  sendStudentWelcomeEmail,
+  sendAdminStudentAddedEmail,
+} from "../utils/email.js";
 import {
   JWT_SECRET,
   JWT_REFRESH_SECRET,
@@ -324,22 +332,22 @@ export const addStudent = async (req, res) => {
 
     // Validate inputs
     const missingFields = [];
-    if (!name) missingFields.push('name');
-    if (!email) missingFields.push('email');
-    if (!password) missingFields.push('password');
-    if (!studentId) missingFields.push('studentId');
-    if (!department) missingFields.push('department');
-    if (!yearOfStudy) missingFields.push('yearOfStudy');
+    if (!name) missingFields.push("name");
+    if (!email) missingFields.push("email");
+    if (!password) missingFields.push("password");
+    if (!studentId) missingFields.push("studentId");
+    if (!department) missingFields.push("department");
+    if (!yearOfStudy) missingFields.push("yearOfStudy");
     if (missingFields.length > 0) {
-      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
     }
 
     if (!validator.isEmail(email)) {
-      throw new Error('Invalid email format');
+      throw new Error("Invalid email format");
     }
 
-    if (phone && !validator.isMobilePhone(phone, 'any')) {
-      throw new Error('Invalid phone number format');
+    if (phone && !validator.isMobilePhone(phone, "any")) {
+      throw new Error("Invalid phone number format");
     }
 
     if (
@@ -352,25 +360,47 @@ export const addStudent = async (req, res) => {
       })
     ) {
       throw new Error(
-        'Password must be at least 8 characters long and include uppercase, lowercase, numbers, and symbols.'
+        "Password must be at least 8 characters long and include uppercase, lowercase, numbers, and symbols."
       );
     }
 
-    const allowedDepartments = ['Computer Science', 'Engineering', 'Business', 'Arts', 'Sciences', 'Medicine'];
+    const allowedDepartments = [
+      "Computer Science",
+      "Engineering",
+      "Business",
+      "Arts",
+      "Sciences",
+      "Medicine",
+    ];
     if (!allowedDepartments.includes(department)) {
-      throw new Error(`Department must be one of: ${allowedDepartments.join(', ')}`);
+      throw new Error(
+        `Department must be one of: ${allowedDepartments.join(", ")}`
+      );
     }
 
-    const allowedYears = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
+    const allowedYears = ["Freshman", "Sophomore", "Junior", "Senior"];
     if (!allowedYears.includes(yearOfStudy)) {
-      throw new Error(`Year of study must be one of: ${allowedYears.join(', ')}`);
+      throw new Error(
+        `Year of study must be one of: ${allowedYears.join(", ")}`
+      );
     }
 
-    const allowedCourses = ['CS101', 'ENG201', 'BUS301', 'ART101', 'SCI201', 'MED101'];
+    const allowedCourses = [
+      "CS101",
+      "ENG201",
+      "BUS301",
+      "ART101",
+      "SCI201",
+      "MED101",
+    ];
     if (courses && courses.length > 0) {
       for (const course of courses) {
         if (!allowedCourses.includes(course)) {
-          throw new Error(`Course ${course} is not valid. Must be one of: ${allowedCourses.join(', ')}`);
+          throw new Error(
+            `Course ${course} is not valid. Must be one of: ${allowedCourses.join(
+              ", "
+            )}`
+          );
         }
       }
     }
@@ -379,7 +409,7 @@ export const addStudent = async (req, res) => {
     const schoolId = req.user.id; // From authenticateSchool middleware
     const school = await School.findById(schoolId).session(session);
     if (!school) {
-      throw new Error('School not found');
+      throw new Error("School not found");
     }
 
     // Validate studentId format (e.g., KNUST-123)
@@ -393,11 +423,11 @@ export const addStudent = async (req, res) => {
       $or: [{ email }, { $and: [{ schoolId, studentId }] }],
     }).session(session);
     if (existingStudent) {
-      throw new Error('Student email or studentId already exists');
+      throw new Error("Student email or studentId already exists");
     }
 
     // Create student
-    console.log('Creating Student document:', { name, email, studentId });
+    console.log("Creating Student document:", { name, email, studentId });
     const student = new Student({
       schoolId,
       name,
@@ -408,16 +438,16 @@ export const addStudent = async (req, res) => {
       department,
       yearOfStudy,
       registrationInfo: {
-        enrollmentDate: registrationInfo?.enrollmentDate || '',
-        program: registrationInfo?.program || '',
-        emergencyContact: registrationInfo?.emergencyContact || '',
-        studentType: registrationInfo?.studentType || '',
-        guardianName: registrationInfo?.guardianName || '',
+        enrollmentDate: registrationInfo?.enrollmentDate || "",
+        program: registrationInfo?.program || "",
+        emergencyContact: registrationInfo?.emergencyContact || "",
+        studentType: registrationInfo?.studentType || "",
+        guardianName: registrationInfo?.guardianName || "",
       },
       courses: courses || [],
     });
     await student.save({ session });
-    console.log('Student saved:', student._id);
+    console.log("Student saved:", student._id);
 
     // Update school's students array
     await School.updateOne(
@@ -425,59 +455,74 @@ export const addStudent = async (req, res) => {
       { $addToSet: { students: student._id } },
       { session }
     );
-    console.log('School updated with student ID:', student._id);
+    console.log("School updated with student ID:", student._id);
 
     // Log transaction
-    console.log('Creating TransactionLog document:', { schoolId, studentId: student._id });
+    console.log("Creating TransactionLog document:", {
+      schoolId,
+      studentId: student._id,
+    });
     const transactionLog = new TransactionLog({
       schoolId,
-      action: 'student_added',
+      action: "student_added",
       metadata: {
         ip: req.ip,
-        deviceId: req.headers['user-agent'],
+        deviceId: req.headers["user-agent"],
         adminId: schoolId, // Track who added the student
         studentId: student._id,
       },
     });
     await transactionLog.save({ session });
-    console.log('TransactionLog saved:', transactionLog._id);
+    console.log("TransactionLog saved:", transactionLog._id);
 
     // Commit transaction
     await session.commitTransaction();
 
     // Send emails and log notifications
     try {
-      console.log('Sending student welcome email to:', email);
-      await sendStudentWelcomeEmail(student, school, password, student.studentId); // Pass plain-text password
-      console.log('Creating Notification document for student:', { recipient: email });
+      console.log("Sending student welcome email to:", email);
+      await sendStudentWelcomeEmail(
+        student,
+        school,
+        password,
+        student.studentId
+      ); // Pass plain-text password
+      console.log("Creating Notification document for student:", {
+        recipient: email,
+      });
       const studentNotification = new Notification({
         recipient: email,
-        type: 'student_added',
+        type: "student_added",
         message: `Student ${name} added to ${school.name}`,
         schoolId,
         studentId: student._id,
-        status: 'sent',
+        status: "sent",
         sentAt: new Date(),
       });
       await studentNotification.save();
-      console.log('Student Notification saved:', studentNotification._id);
+      console.log("Student Notification saved:", studentNotification._id);
 
-      console.log('Sending admin notification email to:', school.email);
+      console.log("Sending admin notification email to:", school.email);
       await sendAdminStudentAddedEmail(school, student);
-      console.log('Creating Notification document for admin:', { recipient: school.email });
+      console.log("Creating Notification document for admin:", {
+        recipient: school.email,
+      });
       const adminNotification = new Notification({
         recipient: school.email,
-        type: 'student_added_admin',
+        type: "student_added_admin",
         message: `Student ${name} added to your school`,
         schoolId,
         studentId: student._id,
-        status: 'sent',
+        status: "sent",
         sentAt: new Date(),
       });
       await adminNotification.save();
-      console.log('Admin Notification saved:', adminNotification._id);
+      console.log("Admin Notification saved:", adminNotification._id);
     } catch (notificationError) {
-      console.error('Non-critical error (notification/email):', notificationError);
+      console.error(
+        "Non-critical error (notification/email):",
+        notificationError
+      );
     }
 
     // End session
@@ -509,10 +554,225 @@ export const addStudent = async (req, res) => {
     if (session) {
       session.endSession();
     }
-    console.error('Add student error:', error);
+    console.error("Add student error:", error);
     return res.status(error.statusCode || 400).json({
       success: false,
-      message: error.message || 'Internal server error',
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
+export const getAdminDashboard = async (req, res) => {
+  try {
+    const { id: schoolId, email } = req.user;
+    const { data, status, academicSession } = req.query;
+
+    console.log("School dashboard access:", {
+      event: "school_dashboard_access",
+      schoolId,
+      email,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      timestamp: new Date().toISOString(),
+    });
+
+    // Verify school exists
+    const school = await School.findById(schoolId).select(
+      "_id name email contactDetails customFields.receiptBranding"
+    );
+    if (!school) {
+      console.error("School not found:", {
+        event: "school_dashboard_error",
+        schoolId,
+        error: "School not found",
+        timestamp: new Date().toISOString(),
+      });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    // Calculate fraud score (10 points per access in 10 minutes, capped at 100)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const accessAttempts = await TransactionLog.countDocuments({
+      action: "school_dashboard_access",
+      schoolId,
+      createdAt: { $gte: tenMinutesAgo },
+    });
+    const fraudScore = Math.min(accessAttempts * 10, 100);
+
+    // Log dashboard access
+    await new TransactionLog({
+      schoolId,
+      action: "school_dashboard_access",
+      metadata: {
+        ip: req.ip,
+        deviceId: req.headers["user-agent"],
+        fraudScore,
+      },
+    }).save();
+
+    // Initialize response data
+    let responseData = {
+      school: {
+        _id: school._id,
+        name: school.name,
+        email: school.email,
+        contactDetails: school.contactDetails,
+        receiptBranding: school.customFields.receiptBranding,
+      },
+      payments: [],
+      students: [],
+      fees: [],
+      reports: {},
+    };
+
+    // Fetch payments (if not restricted)
+    if (!data || data === "payments") {
+      let paymentQuery = { schoolId };
+      if (status) {
+        paymentQuery.status = status;
+      }
+      const payments = await Payment.find(paymentQuery)
+        .populate({
+          path: "studentId",
+          select: "_id name studentId",
+        })
+        .populate({
+          path: "feeId",
+          select: "_id feeType academicSession dueDate",
+        })
+        .select(
+          "_id studentId feeId amount paymentProvider status receiptUrl createdAt"
+        );
+      responseData.payments = payments.map((payment) => ({
+        _id: payment._id,
+        student: {
+          _id: payment.studentId._id,
+          name: payment.studentId.name,
+          studentId: payment.studentId.studentId,
+        },
+        fee: {
+          _id: payment.feeId._id,
+          feeType: payment.feeId.feeType,
+          academicSession: payment.feeId.academicSession,
+          dueDate: payment.feeId.dueDate,
+        },
+        amount: payment.amount,
+        paymentProvider: payment.paymentProvider,
+        status: payment.status,
+        receiptUrl: payment.receiptUrl,
+        createdAt: payment.createdAt,
+      }));
+    }
+
+    // Fetch students (if not restricted)
+    if (!data || data === "students") {
+      const students = await Student.find({ schoolId }).select(
+        "_id name email studentId department yearOfStudy courses"
+      );
+      responseData.students = students.map((student) => ({
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        studentId: student.studentId,
+        department: student.department,
+        yearOfStudy: student.yearOfStudy,
+        courses: student.courses,
+      }));
+    }
+
+    // Fetch fees (if not restricted)
+    if (!data || data === "fees") {
+      let feeQuery = { schoolId };
+      if (academicSession) {
+        feeQuery.academicSession = academicSession;
+      }
+      const fees = await Fee.find(feeQuery).select(
+        "_id feeType amount dueDate academicSession allowPartialPayment"
+      );
+      responseData.fees = fees.map((fee) => ({
+        _id: fee._id,
+        feeType: fee.feeType,
+        amount: fee.amount,
+        dueDate: fee.dueDate,
+        academicSession: fee.academicSession,
+        allowPartialPayment: fee.allowPartialPayment,
+      }));
+    }
+
+    // Generate reports (if not restricted to specific data)
+    if (!data) {
+      const totalPayments = await Payment.aggregate([
+        {
+          $match: {
+            schoolId: new mongoose.Types.ObjectId(schoolId),
+            status: "confirmed",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const pendingPayments = await Payment.countDocuments({
+        schoolId,
+        status: "pending",
+      });
+      const confirmedPayments = await Payment.countDocuments({
+        schoolId,
+        status: "confirmed",
+      });
+      const studentCount = await Student.countDocuments({ schoolId });
+      const overdueFees = await Fee.countDocuments({
+        schoolId,
+        dueDate: { $lt: new Date() },
+      });
+      const requestedRefunds = await Refund.countDocuments({
+        schoolId,
+        status: "requested",
+      });
+      const approvedRefunds = await Refund.countDocuments({
+        schoolId,
+        status: "approved",
+      });
+
+      responseData.reports = {
+        totalPayments: totalPayments[0]?.total || 0,
+        pendingPayments,
+        confirmedPayments,
+        studentCount,
+        overdueFees,
+        requestedRefunds,
+        approvedRefunds,
+      };
+    }
+
+    // Handle empty data
+    if (
+      responseData.payments.length === 0 &&
+      responseData.students.length === 0 &&
+      responseData.fees.length === 0
+    ) {
+      responseData.message = "No data found for this school.";
+    }
+
+    // Increment Prometheus counter (uncomment when set up)
+    // prometheus.register.getSingleMetric('school_dashboard_access_total').inc();
+
+    return res.status(200).json({
+      success: true,
+      data: responseData,
+    });
+  } catch (error) {
+    console.error("School dashboard error:", {
+      event: "school_dashboard_error",
+      schoolId: req.user?.id,
+      email: req.user?.email,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Internal server error",
     });
   }
 };

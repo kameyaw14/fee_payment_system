@@ -14,7 +14,7 @@ export const aj = arcjet({
       // Block all bots except the following
       allow: [
         "CATEGORY:SEARCH_ENGINE", // Google, Bing, etc
-        "CATEGORY:USER_AGENT", // Common user agents
+        // "CATEGORY:USER_AGENT", // Common user agents
         "CATEGORY:API", // API clients like Postman, Insomnia
         "CATEGORY:TESTING", // Testing tools like Selenium, Puppeteer
         "CATEGORY:MONITORING", // Monitoring services like UptimeRobot, Pingdom

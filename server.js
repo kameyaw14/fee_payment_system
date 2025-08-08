@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import cors from "cors";
 import helmet from "helmet";
+import client from "prom-client"
 import connectCloudinary from "./config/connectCloudinary.js";
 import connectDB from "./db/connectDb.js";
 import { PRODUCTION_URL, SYSTEM_NAME } from "./config/env.js";
@@ -25,6 +26,9 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 
 connectCloudinary();
+
+const collectDefaultMetrics = client.collectDefaultMetrics
+collectDefaultMetrics({timeout: 5000})
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -77,6 +81,11 @@ app.get("/", arcjetMiddleware, (req, res) => {
   });
 });
 
+app.get('/metrics', async (req,res)=>{
+    res.set("Content-Type",client.register.contentType)
+    res.end(await client.register.metrics())
+})
+
 // 404 handler
 app.use(arcjetMiddleware, (req, res) => {
   res.status(404).json({
@@ -85,7 +94,7 @@ app.use(arcjetMiddleware, (req, res) => {
   });
 });
 
-// app.use(arcjetMiddleware)
+app.use(arcjetMiddleware)
 
 app.use(errorMiddleware)
 

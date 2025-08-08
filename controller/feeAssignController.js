@@ -1,8 +1,13 @@
+import mongoose from 'mongoose';
+import moment from 'moment';
 import FeeAssignmentModel from '../models/feeAssignmentModel.js';
+import NotificationModel from '../models/Notification.js';
 import FeeModel from '../models/Fee.js';
 import StudentModel from '../models/Student.js';
 import TransactionLogModel from '../models/TransactionLog.js';
 import { logActionUtil } from './auditController.js';
+import { sendFeeAssignmentEmail } from '../utils/email.js';
+import AuditLogModel from '../models/AuditTrail.js';
 
 // Create Fee (admin-only)
 export const createFee = async (req, res) => {
@@ -75,114 +80,105 @@ export const createFee = async (req, res) => {
 
 // Create Fee Assignment (admin-only)
 export const createFeeAssignment = async (req, res) => {
+  let session = null;
   try {
+    // Start MongoDB session for transactions
+    session = await mongoose.startSession();
+    session.startTransaction();
+
     const { feeId, studentId, department, yearOfStudy, dueDate } = req.body;
     const adminId = req.user.id; // From authenticateSchool middleware
+    const clientIp = req.headers['x-forwarded-for'] || req.ip;
 
-    // Validate fee
-    const fee = await FeeModel.findById(feeId);
-    if (!fee) {
-      return res.status(404).json({ message: 'Fee not found' });
+    // Validate inputs
+    if (!feeId || !mongoose.isValidObjectId(feeId)) {
+      throw Object.assign(new Error('Invalid or missing feeId'), { statusCode: 400 });
     }
-    if (fee.schoolId !== adminId) {
-      return res.status(403).json({ message: 'Unauthorized: Fee does not belong to this school' });
+    if (!dueDate) {
+      throw Object.assign(new Error('Due date is required'), { statusCode: 400 });
     }
 
     // Validate dueDate
-    if (!dueDate || new Date(dueDate) <= new Date()) {
-      return res.status(400).json({ message: 'Valid due date in the future is required' });
+    const parsedDueDate = moment(dueDate, 'YYYY-MM-DD', true);
+    if (!parsedDueDate.isValid()) {
+      throw Object.assign(new Error('Invalid due date format (use YYYY-MM-DD)'), { statusCode: 400 });
+    }
+    if (parsedDueDate.toDate() <= new Date()) {
+      throw Object.assign(new Error('Due date must be in the future'), { statusCode: 400 });
+    }
+
+    // Validate fee
+    const fee = await FeeModel.findById(feeId).session(session);
+    if (!fee) {
+      throw Object.assign(new Error('Fee not found'), { statusCode: 404 });
+    }
+    if (fee.schoolId.toString() !== adminId.toString()) {
+      console.log(`adminId: ${adminId} fee.schoolId ${fee.schoolId}`);
+      throw Object.assign(new Error('Unauthorized: Fee does not belong to this school'), { statusCode: 403 });
+    }
+
+    // Basic fraud check (velocity: max 10 assignments per hour per school)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentAssignments = await FeeAssignmentModel.countDocuments({
+      schoolId: adminId,
+      createdAt: { $gte: oneHourAgo },
+    }).session(session);
+    if (recentAssignments > 10) {
+      throw Object.assign(new Error('Too many fee assignments in the last hour'), { statusCode: 429 });
     }
 
     const assignments = [];
 
     if (studentId) {
       // Individual student assignment
-      const student = await StudentModel.findById(studentId);
-      if (!student || student.schoolId.toString() !== adminId) {
-        return res.status(404).json({ message: 'Student not found or not in this school' });
+      if (typeof studentId !== 'string') {
+        throw Object.assign(new Error('studentId must be a string'), { statusCode: 400 });
+      }
+      const student = await StudentModel.findOne({ studentId, schoolId: adminId }).session(session);
+      if (!student) {
+        throw Object.assign(new Error('Student not found or not in this school'), { statusCode: 404 });
+      }
+
+      // Check for duplicate assignment
+      const existingAssignment = await FeeAssignmentModel.findOne({
+        feeId,
+        studentId: student._id,
+        schoolId: adminId,
+      }).session(session);
+      if (existingAssignment) {
+        throw Object.assign(new Error(`Fee already assigned to student ${studentId}`), { statusCode: 400 });
       }
 
       const assignment = new FeeAssignmentModel({
         feeId,
         schoolId: fee.schoolId,
-        studentId,
-        dueDate,
+        studentId: student._id,
+        dueDate: parsedDueDate.toDate(),
         amountDue: fee.amount,
         status: 'assigned',
       });
 
-      await assignment.save();
+      await assignment.save({ session });
       assignments.push(assignment);
 
       // Log to TransactionLog
-      await TransactionLogModel.create({
-        schoolId: fee.schoolId,
-        action: 'fee_assigned',
-        metadata: {
-          ip: req.ip,
-          deviceInfo: req.headers['user-agent'],
-          adminId,
-          feeId,
-          studentId,
-        },
-      });
-
-      // Log to AuditLog
-      await logActionUtil({
-        entityType: 'FeeAssignment',
-        entityId: assignment._id,
-        action: 'fee_assigned',
-        actor: adminId,
-        actorType: 'admin',
-        metadata: {
-          ip: req.ip,
-          deviceInfo: req.headers['user-agent'],
-          adminId,
-          feeId,
-          studentId,
-        },
-      });
-    } else if (department || yearOfStudy) {
-      // Group assignment
-      const query = { schoolId: fee.schoolId };
-      if (department) query.department = department;
-      if (yearOfStudy) query.yearOfStudy = yearOfStudy;
-
-      const students = await StudentModel.find(query);
-      if (students.length === 0) {
-        return res.status(404).json({ message: 'No students found for the given criteria' });
-      }
-
-      for (const student of students) {
-        const assignment = new FeeAssignmentModel({
-          feeId,
-          schoolId: fee.schoolId,
-          studentId: student._id,
-          groupCriteria: { department, yearOfStudy },
-          dueDate,
-          amountDue: fee.amount,
-          status: 'assigned',
-        });
-
-        await assignment.save();
-        assignments.push(assignment);
-
-        // Log to TransactionLog
-        await TransactionLogModel.create({
+      await TransactionLogModel.create(
+        [{
           schoolId: fee.schoolId,
           action: 'fee_assigned',
           metadata: {
-            ip: req.ip,
+            ip: clientIp,
             deviceInfo: req.headers['user-agent'],
             adminId,
             feeId,
             studentId: student._id,
-            department,
-            yearOfStudy,
           },
-        });
+        }],
+        { session }
+      );
 
-        // Log to AuditLog
+      // Log to AuditLog
+      try {
         await logActionUtil({
           entityType: 'FeeAssignment',
           entityId: assignment._id,
@@ -190,40 +186,384 @@ export const createFeeAssignment = async (req, res) => {
           actor: adminId,
           actorType: 'admin',
           metadata: {
-            ip: req.ip,
+            ip: clientIp,
             deviceInfo: req.headers['user-agent'],
             adminId,
             feeId,
             studentId: student._id,
-            department,
-            yearOfStudy,
           },
+          session,
+        });
+      } catch (auditError) {
+        console.error('Non-critical audit log error:', {
+          event: 'audit_failure',
+          error: auditError.message,
+          timestamp: new Date().toISOString(),
         });
       }
+
+      // Send notification
+      try {
+        await sendFeeAssignmentEmail(student, fee, parsedDueDate.toDate());
+        await NotificationModel.create(
+          [{
+            recipient: student.email,
+            type: 'fee_assigned',
+            message: `Fee ${fee.feeType} assigned to ${student.name}`,
+            schoolId: adminId,
+            studentId: student._id,
+            status: 'sent',
+            sentAt: new Date(),
+          }],
+          { session }
+        );
+      } catch (notificationError) {
+        console.error('Non-critical notification error:', {
+          event: 'notification_failure',
+          error: notificationError.message,
+          email: student.email,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } else if (department || yearOfStudy) {
+      // Validate department and yearOfStudy
+      const validDepartments = ['Computer Science', 'Engineering', 'Business', 'Arts', 'Sciences', 'Medicine', ''];
+      const validYears = ['Freshman', 'Sophomore', 'Junior', 'Senior', ''];
+      if (department && !validDepartments.includes(department)) {
+        throw Object.assign(new Error(`Invalid department. Must be one of: ${validDepartments.join(', ')}`), { statusCode: 400 });
+      }
+      if (yearOfStudy && !validYears.includes(yearOfStudy)) {
+        throw Object.assign(new Error(`Invalid year of study. Must be one of: ${validYears.join(', ')}`), { statusCode: 400 });
+      }
+
+      // Group assignment
+      const query = { schoolId: fee.schoolId };
+      if (department) query.department = department;
+      if (yearOfStudy) query.yearOfStudy = yearOfStudy;
+
+      const students = await StudentModel.find(query).session(session);
+      if (students.length === 0) {
+        throw Object.assign(new Error('No students found for the given criteria'), { statusCode: 404 });
+      }
+
+      const newAssignments = [];
+      for (const student of students) {
+        // Check for duplicate assignment
+        const existingAssignment = await FeeAssignmentModel.findOne({
+          feeId,
+          studentId: student._id,
+          schoolId: adminId,
+        }).session(session);
+        if (existingAssignment) {
+          console.log(`Skipping duplicate assignment for student ${student.studentId}`);
+          continue;
+        }
+
+        newAssignments.push({
+          feeId,
+          schoolId: fee.schoolId,
+          studentId: student._id,
+          groupCriteria: { department, yearOfStudy },
+          dueDate: parsedDueDate.toDate(),
+          amountDue: fee.amount,
+          status: 'assigned',
+        });
+      }
+
+      if (newAssignments.length === 0) {
+        throw Object.assign(new Error('No new assignments created (all students already assigned)'), { statusCode: 400 });
+      }
+
+      // Bulk insert assignments
+      const savedAssignments = await FeeAssignmentModel.insertMany(newAssignments, { session });
+      assignments.push(...savedAssignments);
+
+      // Log to TransactionLog and AuditLog
+      const transactionLogs = savedAssignments.map((assignment) => ({
+        schoolId: fee.schoolId,
+        action: 'fee_assigned',
+        metadata: {
+          ip: clientIp,
+          deviceInfo: req.headers['user-agent'],
+          adminId,
+          feeId,
+          studentId: assignment.studentId,
+          department,
+          yearOfStudy,
+        },
+      }));
+
+      await TransactionLogModel.insertMany(transactionLogs, { session });
+
+      for (const assignment of savedAssignments) {
+        try {
+          await logActionUtil({
+            entityType: 'FeeAssignment',
+            entityId: assignment._id,
+            action: 'fee_assigned',
+            actor: adminId,
+            actorType: 'admin',
+            metadata: {
+              ip: clientIp,
+              deviceInfo: req.headers['user-agent'],
+              adminId,
+              feeId,
+              studentId: assignment.studentId,
+              department,
+              yearOfStudy,
+            },
+            session,
+          });
+        } catch (auditError) {
+          console.error('Non-critical audit log error:', {
+            event: 'audit_failure',
+            error: auditError.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      // Send notifications
+      for (const student of students) {
+        try {
+          await sendFeeAssignmentEmail(student, fee, parsedDueDate.toDate());
+          await NotificationModel.create(
+            [{
+              recipient: student.email,
+              type: 'fee_assigned',
+              message: `Fee ${fee.feeType} assigned to ${student.name}`,
+              schoolId: adminId,
+              studentId: student._id,
+              status: 'sent',
+              sentAt: new Date(),
+            }],
+            { session }
+          );
+        } catch (notificationError) {
+          console.error('Non-critical notification error:', {
+            event: 'notification_failure',
+            error: notificationError.message,
+            email: student.email,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
     } else {
-      return res.status(400).json({ message: 'Either studentId or groupCriteria (department/yearOfStudy) must be provided' });
+      throw Object.assign(new Error('Either studentId or groupCriteria (department/yearOfStudy) must be provided'), { statusCode: 400 });
     }
 
-    res.status(201).json({ message: 'Fee assignment created successfully', assignments });
+    // Commit transaction
+    await session.commitTransaction();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Fee assignment created successfully',
+      data: assignments,
+    });
   } catch (error) {
-    console.error('Error creating fee assignment:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (session && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error('Error creating fee assignment:', {
+      event: 'fee_assignment_error',
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      adminId: req.user?.id,
+      feeId: req.body?.feeId,
+      studentId: req.body?.studentId,
+    });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Server error',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message }),
+    });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
   }
 };
 
-// Get Fee Assignments for a Student (student-only)
 export const getStudentFeeAssignments = async (req, res) => {
+  let session = null;
   try {
+    // Start MongoDB session for read consistency
+    session = await mongoose.startSession();
+    session.startTransaction();
+
     const studentId = req.user.id; // From authenticateStudent middleware
+    const clientIp = req.headers['x-forwarded-for'] || req.ip;
+    const { status, page = 1, limit = 10 } = req.query;
 
-    const assignments = await FeeAssignmentModel.find({ studentId })
-      .populate('feeId')
-      .populate('schoolId');
+    // Validate studentId
+    if (!studentId || !mongoose.isValidObjectId(studentId)) {
+      throw Object.assign(new Error('Invalid or missing student ID'), { statusCode: 401 });
+    }
 
-    res.status(200).json({ message: 'Fee assignments retrieved successfully', assignments });
+    // Verify student exists and get schoolId
+    const student = await StudentModel.findById(studentId).session(session);
+    if (!student) {
+      throw Object.assign(new Error('Student not found'), { statusCode: 404 });
+    }
+
+    // Basic fraud check (velocity: max 20 dashboard accesses per hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentAccesses = await AuditLogModel.countDocuments({
+      actorType: 'student',
+      actor: studentId,
+      action: 'dashboard_accessed',
+      createdAt: { $gte: oneHourAgo },
+    }).session(session);
+    if (recentAccesses > 20) {
+      throw Object.assign(new Error('Too many dashboard accesses in the last hour'), { statusCode: 429 });
+    }
+
+    // Build query
+    const query = { studentId };
+    if (status) {
+      if (!['assigned', 'partially_paid', 'fully_paid', 'overdue'].includes(status)) {
+        throw Object.assign(new Error('Invalid status filter'), { statusCode: 400 });
+      }
+      query.status = status;
+    }
+
+    // Fetch assignments with pagination and sorting
+    const assignments = await FeeAssignmentModel.find(query)
+      .select('feeId schoolId status dueDate amountDue amountPaid groupCriteria createdAt updatedAt')
+      .populate({
+        path: 'feeId',
+        select: 'feeType amount description academicSession allowPartialPayment',
+      })
+      .populate({
+        path: 'schoolId',
+        select: 'name customFields.receiptBranding',
+      })
+      .sort({ dueDate: 1, createdAt: -1 })
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit))
+      .session(session);
+
+    // Validate populated data
+    for (const assignment of assignments) {
+      if (!assignment.feeId || !assignment.schoolId) {
+        console.warn('Invalid assignment data:', {
+          event: 'invalid_assignment',
+          assignmentId: assignment._id,
+          feeId: assignment.feeId,
+          schoolId: assignment.schoolId,
+          timestamp: new Date().toISOString(),
+        });
+        throw Object.assign(new Error('Invalid assignment data: missing fee or school'), { statusCode: 500 });
+      }
+      // Verify schoolId matches student's school
+      if (assignment.schoolId._id.toString() !== student.schoolId.toString()) {
+        console.warn('Unauthorized assignment access:', {
+          event: 'unauthorized_assignment',
+          studentId,
+          assignmentId: assignment._id,
+          schoolId: assignment.schoolId._id,
+          timestamp: new Date().toISOString(),
+        });
+        throw Object.assign(new Error('Unauthorized access to assignment'), { statusCode: 403 });
+      }
+    }
+
+    // Log to AuditLog
+    try {
+      await logActionUtil({
+        entityType: 'FeeAssignment',
+        entityId: null, // No specific assignment ID for listing
+        action: 'dashboard_accessed',
+        actor: studentId,
+        actorType: 'student',
+        metadata: {
+          ip: clientIp,
+          deviceInfo: req.headers['user-agent'],
+          studentId,
+          page,
+          limit,
+          statusFilter: status || 'none',
+        },
+        session,
+      });
+    } catch (auditError) {
+      console.error('Non-critical audit log error:', {
+        event: 'audit_failure',
+        error: auditError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Send notification (optional, for security monitoring)
+    try {
+      // await sendStudentDashboardAccessEmail(student, clientIp);
+      await NotificationModel.create(
+        [{
+          recipient: student.email,
+          type: 'dashboard_accessed',
+          message: `Student ${student.name} accessed fee assignments`,
+          schoolId: student.schoolId,
+          studentId: student._id,
+          status: 'sent',
+          sentAt: new Date(),
+        }],
+        { session }
+      );
+    } catch (notificationError) {
+      console.error('Non-critical notification error:', {
+        event: 'notification_failure',
+        error: notificationError.message,
+        email: student.email,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Commit transaction
+    await session.commitTransaction();
+
+    // Validate response data
+    if (!assignments || assignments.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No fee assignments found',
+        data: [],
+        pagination: { page: parseInt(page), limit: parseInt(limit), total: 0 },
+      });
+    }
+
+    const total = await FeeAssignmentModel.countDocuments(query).session(session);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Fee assignments retrieved successfully',
+      data: assignments,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+      },
+    });
   } catch (error) {
-    console.error('Error retrieving fee assignments:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (session && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error('Error retrieving fee assignments:', {
+      event: 'fee_assignments_retrieval_error',
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      studentId: req.user?.id,
+    });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Server error',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message }),
+    });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
   }
 };
 

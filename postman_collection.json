@@ -1,11 +1,79 @@
 {
   "info": {
-    "name": "Student Login API",
-    "_postman_id": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
-    "description": "Collection for testing the student login endpoint",
+    "name": "Fee Payment System API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
+    {
+      "name": "School Registration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Test University\",\n  \"email\": \"test.university@example.com\",\n  \"password\": \"Password@123\",\n  \"contactDetails\": {\n    \"phone\": \"+1234567890\",\n    \"address\": \"123 University Ave\"\n  },\n  \"customFields\": {\n    \"feeStructure\": {},\n    \"receiptBranding\": {\n      \"logoUrl\": \"https://res.cloudinary.com/example/image/logo.png\",\n      \"primaryColor\": \"#1a73e8\"\n    }\n  },\n  \"paymentProviders\": [\n    {\n      \"provider\": \"Paystack\",\n      \"apiKey\": \"{{PAYSTACK_SECRET_KEY}}\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/school/register",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "register"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "School Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"test.university@example.com\",\n  \"password\": \"Password@123\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/school/login",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Add Student",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"Student@123\",\n  \"phone\": \"+1234567891\",\n  \"studentId\": \"STU001\",\n  \"name\": \"John Doe\",\n  \"department\": \"Computer Science\",\n  \"yearOfStudy\": \"Freshman\",\n  \"registrationInfo\": {\n    \"enrollmentDate\": \"2025-08-01\",\n    \"program\": \"BSc Computer Science\",\n    \"emergencyContact\": \"+1234567892\",\n    \"studentType\": \"Full-time\",\n    \"guardianName\": \"Jane Doe\"\n  },\n  \"courses\": [\"CS101\"]\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/school/students/add",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "students", "add"]
+        }
+      },
+      "response": []
+    },
     {
       "name": "Student Login",
       "request": {
@@ -18,98 +86,333 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"email\": \"student@example.com\", \"password\": \"Password123!\"}"
+          "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"Student@123\"\n}"
         },
         "url": {
-          "raw": "{{base_url}}/api/v1/students/login",
-          "host": ["{{base_url}}"],
+          "raw": "{{SERVER_URL}}/api/v1/students/login",
+          "host": ["{{SERVER_URL}}"],
           "path": ["api", "v1", "students", "login"]
-        },
-        "description": "Test student login with email and password"
-      },
-      "response": [
-        {
-          "name": "Success",
-          "originalRequest": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"student@example.com\", \"password\": \"Password123!\"}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/students/login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "students", "login"]
-            }
-          },
-          "status": "OK",
-          "code": 200,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": true, \"data\": {\"_id\": \"student_id\", \"name\": \"Student Name\", \"email\": \"student@example.com\", \"studentId\": \"SCHOOL-123\", \"department\": \"Computer Science\", \"yearOfStudy\": \"Freshman\"}, \"token\": \"jwt_token\", \"refreshToken\": \"refresh_token\"}"
-        },
-        {
-          "name": "Invalid Credentials",
-          "originalRequest": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"student@example.com\", \"password\": \"WrongPassword\"}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/students/login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "students", "login"]
-            }
-          },
-          "status": "Unauthorized",
-          "code": 401,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Invalid credentials\"}"
-        },
-        {
-          "name": "Too Many Attempts",
-          "originalRequest": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"email\": \"student@example.com\", \"password\": \"WrongPassword\"}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/students/login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "students", "login"]
-            }
-          },
-          "status": "Bad Request",
-          "code": 400,
-          "_postman_previewlanguage": "json",
-          "body": "{\"success\": false, \"message\": \"Too many failed login attempts. Please try again later.\"}"
         }
-      ]
+      },
+      "response": []
+    },
+    {
+      "name": "Create Fee",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feeType\": \"Tuition\",\n  \"amount\": 5000,\n  \"dueDate\": \"2025-09-01\",\n  \"academicSession\": \"2025/2026\",\n  \"allowPartialPayment\": true,\n  \"description\": \"First semester tuition fee\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/fee-assignment/create",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "fee-assignment", "create"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Assign Fee to Student",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feeId\": \"{{FEE_ID}}\",\n  \"studentId\": \"{{STUDENT_ID}}\",\n  \"dueDate\": \"2025-09-01\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/fee-assignment/assign",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "fee-assignment", "assign"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Student Fee Assignments",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/fee-assignment/student",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "fee-assignment", "student"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Initialize Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feeId\": \"{{FEE_ID}}\",\n  \"amount\": 5000\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/payment/initialize",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "payment", "initialize"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reference\": \"{{PAYMENT_REFERENCE}}\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/payment/verify",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "payment", "verify"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Request Refund",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentId\": \"{{PAYMENT_ID}}\",\n  \"amount\": 2000,\n  \"reason\": \"Overpayment\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/refund/request",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "refund", "request"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Review Refund",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundId\": \"{{REFUND_ID}}\",\n  \"status\": \"approved\"\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/refund/review",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "refund", "review"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Audit Logs",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/audit/logs?entityType=Payment",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "audit", "logs"],
+          "query": [
+            {
+              "key": "entityType",
+              "value": "Payment"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Payment Webhook (Simulated)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"reference\": \"{{PAYMENT_REFERENCE}}\",\n    \"status\": \"success\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/payment/webhook",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "payment", "webhook"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Refund Webhook (Simulated)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"refund.processed\",\n  \"data\": {\n    \"transaction\": {\"reference\": \"{{PAYMENT_REFERENCE}}\"},\n    \"refunded_by\": \"{{REFUND_ID}}\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/refund/webhook",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "refund", "webhook"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Student Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{STUDENT_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/students/dashboard?data=payments",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "students", "dashboard"],
+          "query": [
+            {
+              "key": "data",
+              "value": "payments"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Admin Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{SCHOOL_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{SERVER_URL}}/api/v1/school/dashboard",
+          "host": ["{{SERVER_URL}}"],
+          "path": ["api", "v1", "school", "dashboard"]
+        }
+      },
+      "response": []
     }
   ],
   "variable": [
     {
-      "key": "base_url",
+      "key": "SERVER_URL",
       "value": "http://localhost:5500"
+    },
+    {
+      "key": "PAYSTACK_SECRET_KEY",
+      "value": "sk_test_935feeae9c06b173473ece5a8f5e365105a7c596"
+    },
+    {
+      "key": "SCHOOL_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "STUDENT_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "FEE_ID",
+      "value": ""
+    },
+    {
+      "key": "STUDENT_ID",
+      "value": ""
+    },
+    {
+      "key": "PAYMENT_ID",
+      "value": ""
+    },
+    {
+      "key": "PAYMENT_REFERENCE",
+      "value": ""
+    },
+    {
+      "key": "REFUND_ID",
+      "value": ""
     }
   ]
 }

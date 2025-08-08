@@ -16,6 +16,8 @@ const notificationSchema = new mongoose.Schema(
         "student_added",
         "student_added_admin",
         "student_login_success",
+        "fee_assigned",
+        'dashboard_accessed'
       ],
       required: true,
     },

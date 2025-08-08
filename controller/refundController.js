@@ -19,7 +19,7 @@ export const requestRefund = async (req, res) => {
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
-    if (payment.studentId.toString() !== studentId) {
+    if (payment.studentId.toString() !== studentId.toString()) {
       return res.status(403).json({ message: 'Unauthorized: Payment does not belong to this student' });
     }
     if (payment.status !== 'confirmed') {
