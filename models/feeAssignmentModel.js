@@ -54,7 +54,7 @@ const feeAssignmentSchema = new mongoose.Schema(
 
 // Ensure at least one of studentId or groupCriteria is provided
 feeAssignmentSchema.pre('validate', function (next) {
-  if (!this.studentId && (!this.groupCriteria.department && !this.groupCriteria.yearOfStudy)) {
+  if (!this.studentId || (!this.groupCriteria.department && !this.groupCriteria.yearOfStudy)) {
     return next(new Error('Either studentId or groupCriteria (department/yearOfStudy) must be provided'));
   }
   next();
