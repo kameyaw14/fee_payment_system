@@ -34,7 +34,9 @@ const corsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
       process.env.CLIENT_URL,
-      "http://localhost:8081",
+      process.env.ADMIN_CLIENT_URL,
+      "http://localhost:3001",
+      "http://localhost:3000",
 
     ].filter(Boolean);
     console.log("CORS request origin:", origin);

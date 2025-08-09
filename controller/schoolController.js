@@ -8,9 +8,9 @@ import TransactionLog from "../models/TransactionLog.js";
 import Notification from "../models/Notification.js";
 import RefreshToken from "../models/RefreshToken.js";
 import Student from "../models/Student.js";
-import Payment from '../models/Payment.js'
-import Fee from '../models/Fee.js'
-import Refund from '../models/Refund.js'
+import Payment from "../models/Payment.js";
+import Fee from "../models/Fee.js";
+import Refund from "../models/Refund.js";
 import {
   sendWelcomeEmail,
   sendFailedLoginEmail,
@@ -21,6 +21,7 @@ import {
   JWT_SECRET,
   JWT_REFRESH_SECRET,
   JWT_EXPIRES_IN,
+  MAX_LOGIN_ATTEMPTS,
 } from "../config/env.js";
 
 export const register = async (req, res) => {
@@ -191,38 +192,61 @@ export const register = async (req, res) => {
   }
 };
 
-export const login = async (req, res, next) => {
+export const login = async (req, res) => {
+  // let session = null;
   try {
+    // session = await mongoose.startSession();
+    // session.startTransaction();
+
     const { email, password } = req.body;
-    console.log("Login attempt:", {
+    console.log("School login attempt:", {
+      event: "school_login_attempt",
       email,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
+      timestamp: new Date().toISOString(),
     });
 
     const missingFields = [];
     if (!email) missingFields.push("email");
     if (!password) missingFields.push("password");
     if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-      });
+      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
     }
 
     if (!validator.isEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid email format",
-      });
+      throw new Error("Invalid email format");
     }
 
-    console.log("Finding school by email:", email);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const failedAttempts = await TransactionLog.countDocuments({
+      action: { $in: ["school_login_failure", "school_mfa_failure"] },
+      "metadata.ip": req.ip,
+      createdAt: { $gte: oneHourAgo },
+    });
+    if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many failed attempts. Please try again later"
+      })
+    }
+
     const school = await School.findOne({ email });
-    console.log("School found:", school ? school._id : "not found");
     if (!school) {
-      console.log("School not found for email:", email);
-      await logFailedLogin(email, req.ip, req.headers["user-agent"], null);
+      try {
+      console.log("logging 1")
+        await logFailedLogin(
+          email,
+          req.ip,
+          req.headers["user-agent"],
+          null,
+          null,
+          failedAttempts + 1,
+        );
+        console.log("logged 1")
+      } catch (logError) {
+        console.log("LogError: ", logError);
+      }
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -231,83 +255,158 @@ export const login = async (req, res, next) => {
 
     const isMatch = await bcrypt.compare(password, school.password);
     if (!isMatch) {
-      console.log("Password mismatch for school:", school._id);
-      await logFailedLogin(
-        email,
-        req.ip,
-        req.headers["user-agent"],
-        school._id
-      ); // Pass school._id instead of null
-      console.log("Sending failed login email to:", school.email);
-      await sendFailedLoginEmail(school, req.ip, new Date());
-      console.log("Creating Notification document for login failure:", {
-        recipient: school.email,
-      });
-      await new Notification({
-        recipient: school.email,
-        type: "login_failure",
-        message: `Failed login attempt for ${school.email}`,
-        schoolId: school._id,
-        status: "sent",
-        sentAt: new Date(),
-      }).save();
-
+      try {
+        console.log("logging. 2");
+        await logFailedLogin(
+          email,
+          req.ip,
+          req.headers["user-agent"],
+          school._id,
+          null,
+          failedAttempts + 1,
+        );
+        console.log("logged 2");
+      } catch (logError) {
+        console.log("logError:", logError);
+      }
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
       });
     }
 
-    // Generate JWT and refresh token
-    const token = jwt.sign(
-      { id: school._id, email: school.email },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-    const refreshToken = jwt.sign({ id: school._id }, JWT_REFRESH_SECRET, {
-      expiresIn: "7d",
+
+    const token = jwt.sign({ id: school._id }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
     });
-    await new RefreshToken({
+    const refreshToken = jwt.sign({ id: school._id }, JWT_REFRESH_SECRET, {
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
+    });
+
+    const refreshTokenDoc = new RefreshToken({
       schoolId: school._id,
       token: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    }).save();
+    });
+    await refreshTokenDoc.save();
 
-    // Log successful login
-    await new TransactionLog({
-      schoolId: school._id,
-      action: "school_login_success",
-      metadata: {
-        ip: req.ip,
-        deviceId: req.headers["user-agent"],
-      },
-    }).save();
+    await TransactionLog.create(
+      [
+        {
+          schoolId: school._id,
+          action: "school_login_success",
+          metadata: {
+            ip: req.ip,
+            deviceInfo: req.headers["user-agent"],
+            deviceId: req.headers["device-id"] || "unknown",
+            fraudScore: 0,
+          },
+        },
+      ],
+    );
 
-    res.status(200).json({
+
+ 
+
+    return res.status(200).json({
       success: true,
-      data: { _id: school._id, name: school.name, email: school.email },
       token,
       refreshToken,
+      data: {
+        _id: school._id,
+        name: school.name,
+        email: school.email,
+      },
     });
   } catch (error) {
-    console.error("Login error:", error);
-    return res.status(error.statusCode || 400).json({
+   
+    console.error("School login error:", {
+      event: "school_login_error",
+      email: req.body.email,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(error.statusCode || 500).json({
       success: false,
       message: error.message || "Internal server error",
     });
   }
 };
 
-const logFailedLogin = async (email, ip, deviceId, schoolId) => {
+
+async function logFailedLogin(
+  email,
+  ip,
+  userAgent,
+  schoolId,
+  studentId,
+  failedAttempts,
+) {
+  console.log("logging transaction...");
+
+  await TransactionLog.create(
+    [
+      {
+        schoolId,
+        action: "school_login_failure",
+        metadata: {
+          ip,
+          deviceInfo: userAgent,
+          deviceId: "unknown",
+          fraudScore: failedAttempts,
+        },
+      },
+    ],
+  );
+  console.log("logged transaction");
+
+  console.log("sending notification to model...");
+
+  await Notification.create(
+    [
+      {
+        recipient: email,
+        type: "login_failure",
+        message: `Failed login attempt for ${email}`,
+        schoolId,
+        studentId,
+        status: "sent",
+        sentAt: new Date(),
+      },
+    ],
+  );
+  console.log("sent notification...");
+
+  await sendFailedLoginEmail({ email, schoolId }, ip, new Date());
+
+
+}
+
+export const checkAuth = async (req, res) => {
   try {
-    await new TransactionLog({
-      schoolId, // Can be null for non-existent email
-      action: "school_login_failure",
-      metadata: { ip, deviceId, email }, // Include email for debugging
-    }).save();
+    // User is already authenticated by authenticateSchool middleware
+    // Return user details and token validity
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: req.user.id,
+        email: req.user.email,
+        userType: "school",
+      },
+      message: "Token is valid",
+    });
   } catch (error) {
-    console.error("Failed to log failed login:", error);
-    // Swallow the error to prevent disrupting the login response
+    console.error("Check auth error:", {
+      event: "school_check_auth_error",
+      schoolId: req.user?.id,
+      email: req.user?.email,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(401).json({
+      success: false,
+      message: error.message || "Invalid or expired token",
+    });
   }
 };
 
