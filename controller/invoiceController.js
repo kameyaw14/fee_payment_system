@@ -8,14 +8,29 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { v2 as cloudinary } from 'cloudinary';
+import connectCloudinary from '../config/connectCloudinary.js';
+import { logActionUtil } from './auditController.js';
 
-// Placeholder for storage service (e.g., AWS S3)
+// Initialize Cloudinary configuration
+connectCloudinary();
+
+// Upload to Cloudinary
 const uploadToStorage = async (filePath, fileName) => {
-  // Implement your storage logic here (e.g., AWS S3 upload)
-  // For this example, assume local storage
-  const storagePath = path.join('uploads/invoices', fileName);
-  fs.renameSync(filePath, storagePath);
-  return `/invoices/${fileName}`; // Return relative URL or S3 URL
+  try {
+    const result = await cloudinary.uploader.upload(filePath, {
+      resource_type: 'raw',
+      public_id: `invoices/${fileName}`,
+      folder: 'invoices',
+      overwrite: true,
+    });
+    // Delete local temp file
+    fs.unlinkSync(filePath);
+    return result.secure_url;
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    throw new Error('Failed to upload invoice to Cloudinary');
+  }
 };
 
 // Generate PDF invoice
@@ -71,16 +86,11 @@ const generateInvoicePDF = async (invoiceData, school, student, fee, payment) =>
       .text(`Payment Date: ${new Date(invoiceData.paymentInfo.paymentDate).toLocaleDateString()}`)
       .moveDown();
 
-    // Totals
-    doc
-      .text(`Subtotal: $${invoiceData.amount.toFixed(2)}`)
-      .text(`Tax: $${invoiceData.tax.toFixed(2)}`)
-      .text(`Total: $${invoiceData.totalAmount.toFixed(2)}`, { align: 'right' });
-
+    // Finalize PDF
     doc.end();
 
     stream.on('finish', () => resolve(filePath));
-    stream.on('error', (err) => reject(err));
+    stream.on('error', (error) => reject(error));
   });
 };
 
@@ -97,9 +107,9 @@ export const createInvoice = async (req, res) => {
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
-    if (payment.status !== 'confirmed') {
-      return res.status(400).json({ message: 'Payment must be confirmed to generate invoice' });
-    }
+    // if (payment.status !== 'confirmed') {
+    //  return res.status(400).json({ message: 'Payment must be confirmed to generate invoice' });
+    //}
 
     const student = payment.studentId;
     const school = payment.schoolId;
@@ -107,6 +117,7 @@ export const createInvoice = async (req, res) => {
 
     // Prepare invoice data
     const invoiceData = {
+      invoiceNumber: `INV-${school._id}-${Date.now()}`,
       paymentId,
       studentId: student._id,
       schoolId: school._id,
@@ -154,15 +165,20 @@ export const createInvoice = async (req, res) => {
       },
     });
 
-    // Placeholder for AuditLog (to be implemented)
-    // await AuditLogModel.create({
-    //   entityType: 'Invoice',
-    //   entityId: invoice._id,
-    //   action: 'invoice_generated',
-    //   actor: req.user?._id || 'system',
-    //   timestamp: new Date(),
-    //   metadata: { ip: req.ip, deviceInfo: req.headers['user-agent'] },
-    // });
+    // Log to AuditLog
+    await logActionUtil({
+      entityType: 'Invoice',
+      entityId: invoice._id,
+      action: 'invoice_generated',
+      actor: payment.schoolId,
+      actorType: 'admin',
+      metadata: {
+        ip: req.ip,
+        deviceInfo: req.headers['user-agent'],
+        invoiceNumber: invoice.invoiceNumber,
+        studentId: student._id,
+      },
+    });
 
     res.status(201).json({ message: 'Invoice created successfully', invoice });
   } catch (error) {
