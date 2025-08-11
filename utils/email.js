@@ -10,9 +10,9 @@ const transporter = nodemailer.createTransport({
     user: FROM_EMAIL,
     pass: EMAIL_PASSWORD,
   },
-  tls:{
-    rejectUnauthorized: false
-  }
+  tls: {
+    rejectUnauthorized: false,
+  },
 });
 
 export const sendWelcomeEmail = async (school) => {
@@ -23,17 +23,11 @@ export const sendWelcomeEmail = async (school) => {
     html: `
       <h1>Welcome, ${school.name}!</h1>
       <p>Your school has been successfully registered.</p>
-      <p>Access the admin portal at: <a href="${process.env.ADMIN_URL}">${
-      process.env.ADMIN_URL
-    }</a></p>
-      <p style="color: ${school.customFields.receiptBranding.primaryColor}">
+      <p>Access the admin portal at: <a href="${process.env.ADMIN_URL}">${process.env.ADMIN_URL}</a></p>
+      <p style="color:#1976D2">
         Thank you for joining!
       </p>
-      ${
-        school.customFields.receiptBranding.logoUrl
-          ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" />`
-          : ""
-      }
+      
     `,
   };
 
@@ -68,13 +62,65 @@ export const sendFailedLoginEmail = async (user, ip, timestamp) => {
   await transporter.sendMail(mailOptions);
 };
 
-export const sendStudentWelcomeEmail = async (student, school, plainPassword, studentId) => {
+export const sendOtpEmail = async (school, otp) => {
+  const mailOptions = {
+    from: `"${school.name} Payment System" <${FROM_EMAIL}>`,
+    to: school.email,
+    subject: `Your OTP for ${SYSTEM_NAME}`,
+    html: `
+      <h1 style="color: #1976D2">Verify Your Account</h1>
+      <p>Your one-time password (OTP) for ${school.name} is:</p>
+      <p><strong>${school.otp}</strong></p>
+      <p>This OTP expires in 5 minutes.</p>
+      <p>Login to verify: <a href="${process.env.ADMIN_CLIENT_URL}/mfa/verify">Verify OTP</a></p>
+      
+    `,
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error(`Error sending otp`, error);
+    throw new Error(`Error sending otp email: ${error}`);
+  }
+};
+
+export const sendMfaFailedEmail = async (school, ip, timestamp) => {
+  const mailOptions = {
+    from: `"${school.name} Payment System" <${FROM_EMAIL}>`,
+    to: school.email,
+    subject: `Failed MFA Attempt for ${SYSTEM_NAME}`,
+    html: `
+      <h1 style="color: ${
+        school.customFields.receiptBranding.primaryColor
+      }">Security Alert</h1>
+      <p>A failed MFA attempt was detected for your account.</p>
+      <p><strong>Time:</strong> ${timestamp.toISOString()}</p>
+      <p><strong>IP Address:</strong> ${ip}</p>
+      <p>If this was not you, please secure your account.</p>
+      ${
+        school.customFields.receiptBranding.logoUrl
+          ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" style="max-width: 200px;" />`
+          : ""
+      }
+    `,
+  };
+  await transporter.sendMail(mailOptions);
+};
+
+export const sendStudentWelcomeEmail = async (
+  student,
+  school,
+  plainPassword,
+  studentId
+) => {
   const mailOptions = {
     from: `"${school.name} Payment System" <${FROM_EMAIL}>`,
     to: student.email,
     subject: `Welcome to ${school.name}`,
     html: `
-      <h1 style="color: ${school.customFields.receiptBranding.primaryColor}">Welcome, ${student.name}!</h1>
+      <h1 style="color: ${
+        school.customFields.receiptBranding.primaryColor
+      }">Welcome, ${student.name}!</h1>
       <p>You have been added as a student at ${school.name}.</p>
       <p><strong>Student ID:</strong> ${studentId}</p>
       <p><strong>Email:</strong> ${student.email}</p>
@@ -87,7 +133,7 @@ export const sendStudentWelcomeEmail = async (student, school, plainPassword, st
       ${
         school.customFields.receiptBranding.logoUrl
           ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" style="max-width: 200px;" />`
-          : ''
+          : ""
       }
     `,
   };
@@ -121,13 +167,15 @@ export const sendStudentLoginSuccessEmail = async (student) => {
     to: student.email,
     subject: `Successful Login to ${school.name}`,
     html: `
-      <h1 style="color: ${school.customFields.receiptBranding.primaryColor}">Welcome Back, ${student.name}!</h1>
+      <h1 style="color: ${
+        school.customFields.receiptBranding.primaryColor
+      }">Welcome Back, ${student.name}!</h1>
       <p>You have successfully logged in to your ${school.name} account.</p>
       <p>Access your dashboard to view payment history and courses: <a href="http://localhost:3000/dashboard">Dashboard</a></p>
       ${
         school.customFields.receiptBranding.logoUrl
           ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" style="max-width: 200px;" />`
-          : ''
+          : ""
       }
     `,
   };
@@ -141,17 +189,19 @@ export const sendFeeAssignmentEmail = async (student, fee, dueDate) => {
     to: student.email,
     subject: `New Fee Assigned: ${fee.feeType}`,
     html: `
-      <h1 style="color: ${school.customFields.receiptBranding.primaryColor}">Dear ${student.name},</h1>
+      <h1 style="color: ${
+        school.customFields.receiptBranding.primaryColor
+      }">Dear ${student.name},</h1>
       <p>A new fee has been assigned to you by ${school.name}.</p>
       <p><strong>Fee Type:</strong> ${fee.feeType}</p>
       <p><strong>Amount:</strong> ${fee.amount}</p>
-      <p><strong>Due Date:</strong> ${dueDate.toISOString().split('T')[0]}</p>
-      <p><strong>Description:</strong> ${fee.description || 'N/A'}</p>
+      <p><strong>Due Date:</strong> ${dueDate.toISOString().split("T")[0]}</p>
+      <p><strong>Description:</strong> ${fee.description || "N/A"}</p>
       <p>Login to your dashboard to view details: <a href="http://localhost:3000/dashboard">Dashboard</a></p>
       ${
         school.customFields.receiptBranding.logoUrl
           ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" style="max-width: 200px;" />`
-          : ''
+          : ""
       }
     `,
   };

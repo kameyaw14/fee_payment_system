@@ -16,8 +16,12 @@ export const authenticateSchool = async (req, res, next) => {
     if (!school) {
       throw new Error("School not found");
     }
+    
+    if (!decoded.isTemp && !school.isVerified) {
+      throw new Error("MFA verification required");
+    }
 
-    req.user = { id: school._id, email: school.email }; // Changed from req.school to req.user
+    req.user = { id: school._id, email: school.email };
     next();
   } catch (error) {
     res.status(401).json({

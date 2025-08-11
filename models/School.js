@@ -22,7 +22,10 @@ const schoolSchema = new mongoose.Schema({
     apiKey: { type: String, required: true },
     priority: { type: Number, default: 1 },
   }],
-  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }], // Array of student IDs
+  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }], 
+  isVerified: { type: Boolean, default: false },
+  otp: { type: String, default: null },
+  otpExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 schoolSchema.pre('save', async function (next) {

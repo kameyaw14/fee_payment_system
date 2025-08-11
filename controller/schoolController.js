@@ -1,4 +1,3 @@
-// controllers/schoolController.js
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
@@ -16,50 +15,58 @@ import {
   sendFailedLoginEmail,
   sendStudentWelcomeEmail,
   sendAdminStudentAddedEmail,
+  sendOtpEmail,
+  sendMfaFailedEmail,
 } from "../utils/email.js";
 import {
   JWT_SECRET,
   JWT_REFRESH_SECRET,
   JWT_EXPIRES_IN,
+  JWT_REFRESH_EXPIRES_IN,
   MAX_LOGIN_ATTEMPTS,
 } from "../config/env.js";
 
 export const register = async (req, res) => {
   let session = null;
   try {
-    // Start MongoDB session
     session = await mongoose.startSession();
     session.startTransaction();
 
-    const {
-      name,
-      email,
-      password,
-      contactDetails,
-      customFields,
-      paymentProviders,
-    } = req.body;
+    const { name, email, password, contactDetails, paymentProviders } = req.body;
 
     // Validate inputs
     const missingFields = [];
     if (!name) missingFields.push("name");
     if (!email) missingFields.push("email");
     if (!password) missingFields.push("password");
-    if (!contactDetails) missingFields.push("contactDetails");
-    if (!customFields) missingFields.push("customFields");
+    if (!contactDetails?.phone) missingFields.push("contactDetails.phone");
+    if (!contactDetails?.address) missingFields.push("contactDetails.address");
     if (!paymentProviders || paymentProviders.length === 0) {
-      missingFields.push("At least one Paystack provider is required");
+      missingFields.push("At least one payment provider is required");
     }
     if (missingFields.length > 0) {
-      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(", ")}`,
+      });
     }
 
     if (!validator.isEmail(email)) {
-      throw new Error("Invalid email format");
+      await session.abortTransaction();
+      session.endSession();
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid email format" });
     }
 
     if (!validator.isMobilePhone(contactDetails.phone, "any")) {
-      throw new Error("Invalid phone number format");
+      await session.abortTransaction();
+      session.endSession();
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid phone number format" });
     }
 
     if (
@@ -71,133 +78,147 @@ export const register = async (req, res) => {
         minSymbols: 1,
       })
     ) {
-      throw new Error(
-        "Password must be at least 8 characters long and include uppercase, lowercase, numbers, and symbols."
-      );
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be strong (8+ characters, with uppercase, lowercase, number, and symbol)",
+      });
     }
 
-    if (
-      !paymentProviders.length ||
-      !paymentProviders.some((p) => p.provider === "Paystack")
-    ) {
-      throw new Error("At least one payment provider (Paystack) is required.");
-    }
-
-    // Check for duplicate email
     const existingSchool = await School.findOne({ email }).session(session);
     if (existingSchool) {
-      throw new Error("School with this email already exists");
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: "School with this email already exists",
+      });
     }
 
-    // Create and save school
-    console.log("Creating School document:", { name, email });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const school = new School({
       name,
       email,
-      password,
+      password, // Will be hashed by schema pre-save hook
       contactDetails,
-      customFields,
-      paymentProviders,
+      paymentProviders: [
+        {
+          ...paymentProviders[0],
+          apiKey: process.env.PAYMENT_API_KEY || paymentProviders[0].apiKey,
+        },
+      ],
+      isVerified: false,
+      otp,
+      otpExpires,
     });
-    await school.save({ session });
-    console.log("School saved:", school._id);
 
-    // Generate JWT and refresh token
-    const token = jwt.sign(
-      { id: school._id, email: school.email },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    console.log("Creating new School document", {
+      name,
+      email,
+      contactDetails,
+      otp,
+    });
+
+    await school.save({ session });
+    console.log("School saved");
+
+    // Generate JWT tokens
+    const token = jwt.sign({ id: school._id }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
     const refreshToken = jwt.sign({ id: school._id }, JWT_REFRESH_SECRET, {
-      expiresIn: "7d",
+      expiresIn: JWT_REFRESH_EXPIRES_IN,
     });
 
     // Save refresh token
-    console.log("Creating RefreshToken document:", { schoolId: school._id });
-    const refreshTokenDoc = new RefreshToken({
-      schoolId: school._id,
-      token: refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
-    await refreshTokenDoc.save({ session });
-    console.log("RefreshToken saved:", refreshTokenDoc._id);
+    await RefreshToken.create(
+      [
+        {
+          schoolId: school._id,
+          token: refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        },
+      ],
+      { session }
+    );
 
-    // Log registration
-    console.log("Creating TransactionLog document:", { schoolId: school._id });
-    const transactionLog = new TransactionLog({
-      schoolId: school._id,
-      action: "school_registration",
-      metadata: {
-        ip: req.ip,
-        deviceId: req.headers["user-agent"],
-      },
-    });
-    await transactionLog.save({ session });
-    console.log("TransactionLog saved:", transactionLog._id);
+    console.log(`Sending OTP to ${school.email} from ${school.name}...`);
+    await sendOtpEmail(school, otp);
+    console.log(`OTP sent`);
 
-    // Commit transaction
+    // Log OTP sent
+    await TransactionLog.create(
+      [
+        {
+          action: "otp_sent",
+          schoolId: school._id,
+          email,
+          timestamp: new Date(),
+          details: { token },
+        },
+      ],
+      { session }
+    );
+    console.log(`OTP transaction log created`);
+
+    // Create notification
+    await Notification.create(
+      [
+        {
+          recipient: email,
+          type: "school_registration",
+          message: `School ${name} registered successfully`,
+          schoolId: school._id,
+          status: "sent",
+          sentAt: new Date(),
+        },
+      ],
+      { session }
+    );
+
     await session.commitTransaction();
+    session.endSession();
 
-    // Send welcome email and log notification
-    try {
-      console.log("Sending welcome email to:", school.email);
-      await sendWelcomeEmail(school);
-      console.log("Creating Notification document:", {
-        recipient: school.email,
-      });
-      const notification = new Notification({
-        recipient: school.email,
-        type: "school_registration",
-        message: `School ${school.name} registered successfully`,
-        schoolId: school._id,
-        status: "sent",
-        sentAt: new Date(),
-      });
-      await notification.save();
-      console.log("Notification saved:", notification._id);
-    } catch (notificationError) {
-      console.error(
-        "Non-critical error (notification/email):",
-        notificationError
-      );
-      // Continue despite notification/email failure
-    }
-
-    // End session
-    if (session) {
-      session.endSession();
-    }
-
-    // Increment Prometheus counter (uncomment when set up)
-    // prometheus.register.getSingleMetric('school_registrations_total').inc();
+    console.log({
+      event: "school_registered",
+      schoolId: school._id,
+      email,
+      timestamp: new Date().toISOString(),
+    });
 
     return res.status(201).json({
       success: true,
-      data: { _id: school._id, name: school.name, email: school.email },
       token,
       refreshToken,
+      data: {
+        _id: school._id,
+        name: school.name,
+        email: school.email,
+      },
     });
   } catch (error) {
-    if (session && session.inTransaction()) {
-      await session.abortTransaction();
-    }
     if (session) {
+      await session.abortTransaction();
       session.endSession();
     }
-    console.error("Registration error:", error);
-    return res.status(error.statusCode || 400).json({
+    console.log({
+      event: "register_error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error",
+      message: error.message || "Server error during registration",
     });
   }
 };
 
 export const login = async (req, res) => {
-  // let session = null;
   try {
-    // session = await mongoose.startSession();
-    // session.startTransaction();
-
     const { email, password } = req.body;
     console.log("School login attempt:", {
       event: "school_login_attempt",
@@ -211,14 +232,18 @@ export const login = async (req, res) => {
     if (!email) missingFields.push("email");
     if (!password) missingFields.push("password");
     if (missingFields.length > 0) {
-      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+      const error = new Error(
+        `Missing required fields: ${missingFields.join(", ")}`
+      )
+      error.statusCode = 400
+      throw error
     }
 
     if (!validator.isEmail(email)) {
       throw new Error("Invalid email format");
     }
 
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 hour
     const failedAttempts = await TransactionLog.countDocuments({
       action: { $in: ["school_login_failure", "school_mfa_failure"] },
       "metadata.ip": req.ip,
@@ -227,26 +252,13 @@ export const login = async (req, res) => {
     if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
       return res.status(429).json({
         success: false,
-        message: "Too many failed attempts. Please try again later"
-      })
+        message: "Too many failed attempts. Please try again later",
+      });
     }
 
     const school = await School.findOne({ email });
     if (!school) {
-      try {
-      console.log("logging 1")
-        await logFailedLogin(
-          email,
-          req.ip,
-          req.headers["user-agent"],
-          null,
-          null,
-          failedAttempts + 1,
-        );
-        console.log("logged 1")
-      } catch (logError) {
-        console.log("LogError: ", logError);
-      }
+      await logFailedLogin(email, req.ip, req.headers["user-agent"], null, null, failedAttempts + 1);
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -255,32 +267,25 @@ export const login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, school.password);
     if (!isMatch) {
-      try {
-        console.log("logging. 2");
-        await logFailedLogin(
-          email,
-          req.ip,
-          req.headers["user-agent"],
-          school._id,
-          null,
-          failedAttempts + 1,
-        );
-        console.log("logged 2");
-      } catch (logError) {
-        console.log("logError:", logError);
-      }
+      await logFailedLogin(email, req.ip, req.headers["user-agent"], school._id, null, failedAttempts + 1);
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
       });
     }
 
+    if (!school.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify your email with the OTP sent",
+      });
+    }
 
     const token = jwt.sign({ id: school._id }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,
     });
     const refreshToken = jwt.sign({ id: school._id }, JWT_REFRESH_SECRET, {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
+      expiresIn: JWT_REFRESH_EXPIRES_IN,
     });
 
     const refreshTokenDoc = new RefreshToken({
@@ -290,23 +295,18 @@ export const login = async (req, res) => {
     });
     await refreshTokenDoc.save();
 
-    await TransactionLog.create(
-      [
-        {
-          schoolId: school._id,
-          action: "school_login_success",
-          metadata: {
-            ip: req.ip,
-            deviceInfo: req.headers["user-agent"],
-            deviceId: req.headers["device-id"] || "unknown",
-            fraudScore: 0,
-          },
+    await TransactionLog.create([
+      {
+        schoolId: school._id,
+        action: "school_login_success",
+        metadata: {
+          ip: req.ip,
+          deviceInfo: req.headers["user-agent"],
+          deviceId: req.headers["device-id"] || "unknown",
+          fraudScore: 0,
         },
-      ],
-    );
-
-
- 
+      },
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -319,7 +319,6 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-   
     console.error("School login error:", {
       event: "school_login_error",
       email: req.body.email,
@@ -333,54 +332,179 @@ export const login = async (req, res) => {
   }
 };
 
+async function logFailedLogin(email, ip, userAgent, schoolId, studentId, failedAttempts) {
+  console.log("Logging failed login...");
 
-async function logFailedLogin(
-  email,
-  ip,
-  userAgent,
-  schoolId,
-  studentId,
-  failedAttempts,
-) {
-  console.log("logging transaction...");
-
-  await TransactionLog.create(
-    [
-      {
-        schoolId,
-        action: "school_login_failure",
-        metadata: {
-          ip,
-          deviceInfo: userAgent,
-          deviceId: "unknown",
-          fraudScore: failedAttempts,
-        },
+  await TransactionLog.create([
+    {
+      schoolId,
+      action: "school_login_failure",
+      metadata: {
+        ip,
+        deviceInfo: userAgent,
+        deviceId: "unknown",
+        fraudScore: failedAttempts,
       },
-    ],
-  );
-  console.log("logged transaction");
+    },
+  ]);
 
-  console.log("sending notification to model...");
-
-  await Notification.create(
-    [
-      {
-        recipient: email,
-        type: "login_failure",
-        message: `Failed login attempt for ${email}`,
-        schoolId,
-        studentId,
-        status: "sent",
-        sentAt: new Date(),
-      },
-    ],
-  );
-  console.log("sent notification...");
+  await Notification.create([
+    {
+      recipient: email,
+      type: "login_failure",
+      message: `Failed login attempt for ${email}`,
+      schoolId,
+      studentId,
+      status: "sent",
+      sentAt: new Date(),
+    },
+  ]);
 
   await sendFailedLoginEmail({ email, schoolId }, ip, new Date());
-
-
 }
+
+export const sendOtp = async (req, res) => {
+  try {
+    const school = await School.findById(req.user.id);
+    if (!school) throw new Error("School not found");
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    school.otp = otp;
+    school.otpExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await school.save();
+    await sendOtpEmail(school, otp);
+
+    await TransactionLog.create({
+      schoolId: school._id,
+      action: "otp_sent",
+      details: { email: school.email, timestamp: new Date().toISOString() },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent to your email",
+    });
+  } catch (error) {
+    console.error("Send OTP error:", {
+      event: "send_otp_error",
+      schoolId: req.user?.id,
+      email: req.user?.email,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to send OTP",
+    });
+  }
+};
+
+export const resendOtp = async (req, res) => {
+  try {
+    const school = await School.findById(req.user.id);
+    if (!school) throw new Error("School not found");
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    school.otp = otp;
+    school.otpExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await school.save();
+    await sendOtpEmail(school, otp);
+
+    await TransactionLog.create({
+      schoolId: school._id,
+      action: "otp_resent",
+      details: { email: school.email, timestamp: new Date().toISOString() },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP resent to your email",
+    });
+  } catch (error) {
+    console.error("Resend OTP error:", {
+      event: "resend_otp_error",
+      schoolId: req.user?.id,
+      email: req.user?.email,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to resend OTP",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    if (!otp || !validator.isNumeric(otp) || otp.length !== 6) {
+      throw new Error("Invalid OTP format");
+    }
+
+    const school = await School.findOne({
+      otp,
+      otpExpires: { $gt: Date.now() },
+    });
+    if (!school) {
+      await TransactionLog.create({
+        action: "otp_verify_failed",
+        details: { otp, timestamp: new Date().toISOString() },
+      });
+      throw new Error("Invalid or expired OTP");
+    }
+
+    school.isVerified = true;
+    school.otp = null;
+    school.otpExpires = null;
+    await school.save();
+
+    const token = jwt.sign({ id: school._id }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+    const refreshToken = jwt.sign({ id: school._id }, JWT_REFRESH_SECRET, {
+      expiresIn: JWT_REFRESH_EXPIRES_IN,
+    });
+
+    await RefreshToken.create({
+      schoolId: school._id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    await TransactionLog.create({
+      schoolId: school._id,
+      action: "otp_verified",
+      details: { email: school.email, timestamp: new Date().toISOString() },
+    });
+
+    await sendWelcomeEmail(school);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      refreshToken,
+      data: {
+        _id: school._id,
+        name: school.name,
+        email: school.email,
+      },
+      message: "OTP verified successfully",
+    });
+  } catch (error) {
+    console.error("Verify OTP error:", {
+      event: "verify_otp_error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to verify OTP",
+    });
+  }
+};
+
+
 
 export const checkAuth = async (req, res) => {
   try {
@@ -680,10 +804,10 @@ export const getAdminDashboard = async (req, res) => {
       "_id name email contactDetails customFields.receiptBranding"
     );
     if (!school) {
-      console.error("School not found:", {
+      console.error("School not foundadmin 1:", {
         event: "school_dashboard_error",
         schoolId,
-        error: "School not found",
+        error: "School not foundadmin",
         timestamp: new Date().toISOString(),
       });
       return res.status(401).json({
