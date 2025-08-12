@@ -5,6 +5,7 @@ import SchoolModel from '../models/School.js';
 import TransactionLogModel from '../models/TransactionLog.js';
 import { logActionUtil } from './auditController.js';
 import { createInvoice } from './invoiceController.js';
+import { updateFeeAssignmentStatus } from './feeAssignController.js';
 import axios from 'axios';
 
 const PAYSTACK_BASE_URL = 'api.paystack.co';
@@ -68,7 +69,7 @@ export const initializePayment = async (req, res) => {
       path: '/transaction/initialize',
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${paystackProvider.apiKey}`,
+        Authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY,
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(params),
       },
@@ -147,11 +148,11 @@ export const verifyPayment = async (req, res) => {
       return res.status(404).json({ message: 'Payment not found' });
     }
 
-    const school = await SchoolModel.findById(payment.schoolId);
-    const paystackProvider = school.paymentProviders.find(p => p.provider === 'Paystack');
+    
+    
 
     const response = await axios.get(`https://${PAYSTACK_BASE_URL}/transaction/verify/${reference}`, {
-      headers: { Authorization: `Bearer ${paystackProvider.apiKey}` },
+      headers: { Authorization: `Bearer`+ process.env.PAYSTACK_SECRET_KEY },
     });
 
     if (response.data.status && response.data.data.status === 'success') {
@@ -176,12 +177,12 @@ export const verifyPayment = async (req, res) => {
         entityType: 'Payment',
         entityId: payment._id,
         action: 'payment_confirmed',
-        actor: null,
-        actorType: 'system',
+        actor: payment.schoolId,
+        actorType: 'admin',
         metadata: {
           ip: req.ip,
           deviceInfo: req.headers['user-agent'],
-          studentId: payment.studentId,
+          studentId: payment.schoolId,
           paystackRef: reference,
         },
       });

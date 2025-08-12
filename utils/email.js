@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { EMAIL_PASSWORD, SYSTEM_NAME } from "../config/env.js";
 import School from "../models/School.js";
 
-export const FROM_EMAIL = "kojoameyaw519@gmail.com";
+export const FROM_EMAIL = /*"kojoameyaw519@gmail.com"*/ process.env.EMAIL_HOST ;
 
 const transporter = nodemailer.createTransport({
   service: "gmail",

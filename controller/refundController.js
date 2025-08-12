@@ -175,7 +175,7 @@ export const reviewRefund = async (req, res) => {
         path: '/refund',
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${paystackProvider.apiKey}`,
+          Authorization: `Bearer` + process.env.PAYSTACK_SECRET_KEY,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(params),
         },

@@ -147,8 +147,13 @@ export const register = async (req, res) => {
     );
 
     console.log(`Sending OTP to ${school.email} from ${school.name}...`);
-    await sendOtpEmail(school, otp);
-    console.log(`OTP sent`);
+    try {
+      await sendOtpEmail(school, otp);
+      console.log(`OTP sent`);
+    } catch (error) {
+      console.error("Failed to send OTP email:", error);
+    }
+    
 
     // Log OTP sent
     await TransactionLog.create(
