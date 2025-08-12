@@ -19,7 +19,7 @@ const schoolSchema = new mongoose.Schema({
   },
   paymentProviders: [{
     provider: { type: String, enum: ['Paystack', 'Flutterwave', 'Payswitch'], default: 'Paystack' },
-    apiKey: { type: String, required: true },
+    apiKey: { type: String },
     priority: { type: Number, default: 1 },
   }],
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }], 
