@@ -26,4 +26,5 @@ export const {
   CLOUDINARY_API_SECRET,
   MAX_LOGIN_ATTEMPTS,
   PRODUCTION_URL,
+  EMAIL_HOST
  } = process.env;
