@@ -25,6 +25,10 @@ import {
   JWT_REFRESH_EXPIRES_IN,
   MAX_LOGIN_ATTEMPTS,
 } from "../config/env.js";
+import FeeModel from "../models/Fee.js";
+import { logActionUtil } from "./auditController.js";
+import FeeAssignmentModel from "../models/feeAssignmentModel.js";
+import TransactionLogModel from "../models/TransactionLog.js";
 
 export const register = async (req, res) => {
   let session = null;
@@ -32,7 +36,8 @@ export const register = async (req, res) => {
     session = await mongoose.startSession();
     session.startTransaction();
 
-    const { name, email, password, contactDetails, paymentProviders } = req.body;
+    const { name, email, password, contactDetails, paymentProviders } =
+      req.body;
 
     // Validate inputs
     const missingFields = [];
@@ -234,9 +239,9 @@ export const login = async (req, res) => {
     if (missingFields.length > 0) {
       const error = new Error(
         `Missing required fields: ${missingFields.join(", ")}`
-      )
-      error.statusCode = 400
-      throw error
+      );
+      error.statusCode = 400;
+      throw error;
     }
 
     if (!validator.isEmail(email)) {
@@ -258,7 +263,14 @@ export const login = async (req, res) => {
 
     const school = await School.findOne({ email });
     if (!school) {
-      await logFailedLogin(email, req.ip, req.headers["user-agent"], null, null, failedAttempts + 1);
+      await logFailedLogin(
+        email,
+        req.ip,
+        req.headers["user-agent"],
+        null,
+        null,
+        failedAttempts + 1
+      );
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -267,7 +279,14 @@ export const login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, school.password);
     if (!isMatch) {
-      await logFailedLogin(email, req.ip, req.headers["user-agent"], school._id, null, failedAttempts + 1);
+      await logFailedLogin(
+        email,
+        req.ip,
+        req.headers["user-agent"],
+        school._id,
+        null,
+        failedAttempts + 1
+      );
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -332,7 +351,14 @@ export const login = async (req, res) => {
   }
 };
 
-async function logFailedLogin(email, ip, userAgent, schoolId, studentId, failedAttempts) {
+async function logFailedLogin(
+  email,
+  ip,
+  userAgent,
+  schoolId,
+  studentId,
+  failedAttempts
+) {
   console.log("Logging failed login...");
 
   await TransactionLog.create([
@@ -348,17 +374,21 @@ async function logFailedLogin(email, ip, userAgent, schoolId, studentId, failedA
     },
   ]);
 
-  await Notification.create([
-    {
-      recipient: email,
-      type: "login_failure",
-      message: `Failed login attempt for ${email}`,
-      schoolId,
-      studentId,
-      status: "sent",
-      sentAt: new Date(),
-    },
-  ]);
+  try {
+    await Notification.create([
+      {
+        recipient: email,
+        type: "login_failure",
+        message: `Failed login attempt for ${email}`,
+        schoolId,
+        studentId,
+        status: "sent",
+        sentAt: new Date(),
+      },
+    ]);
+  } catch (error) {
+    console.log(`Notification error: `, error);
+  }
 
   await sendFailedLoginEmail({ email, schoolId }, ip, new Date());
 }
@@ -504,8 +534,6 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-
-
 export const checkAuth = async (req, res) => {
   try {
     // User is already authenticated by authenticateSchool middleware
@@ -536,6 +564,7 @@ export const checkAuth = async (req, res) => {
 
 export const addStudent = async (req, res) => {
   let session = null;
+  console.log("Startin session");
   try {
     // Start MongoDB session
     session = await mongoose.startSession();
@@ -628,8 +657,10 @@ export const addStudent = async (req, res) => {
       }
     }
 
+    console.log(`Requesting id...`);
     // Get school from JWT
     const schoolId = req.user.id; // From authenticateSchool middleware
+    console.log(`Getting school...`);
     const school = await School.findById(schoolId).session(session);
     if (!school) {
       throw new Error("School not found");
@@ -669,10 +700,12 @@ export const addStudent = async (req, res) => {
       },
       courses: courses || [],
     });
+    console.log(`Saving student...`);
     await student.save({ session });
     console.log("Student saved:", student._id);
 
     // Update school's students array
+    console.log(`Updating...`);
     await School.updateOne(
       { _id: schoolId },
       { $addToSet: { students: student._id } },
@@ -739,6 +772,7 @@ export const addStudent = async (req, res) => {
         status: "sent",
         sentAt: new Date(),
       });
+      console.log(`Saving notification...`);
       await adminNotification.save();
       console.log("Admin Notification saved:", adminNotification._id);
     } catch (notificationError) {
@@ -997,5 +1031,169 @@ export const getAdminDashboard = async (req, res) => {
       success: false,
       message: error.message || "Internal server error",
     });
+  }
+};
+
+export const getFees = async (req, res) => {
+  console.log(`starting try...`)
+  try {
+    const schoolId = req.user.id;
+    const { academicSession } = req.query;
+
+    const query = { schoolId: new mongoose.Types.ObjectId(schoolId) };
+    if (academicSession) {
+      query.academicSession = academicSession;
+    }
+
+    const fees = await FeeModel.find(query).sort({ createdAt: -1 });
+
+    console.log(`awaiting logs...`)
+   try {
+     await logActionUtil({
+       entityType: "Fee",
+       entityId: schoolId,
+       action: "fees_viewed",
+       actor: schoolId,
+       actorType: "admin",
+       metadata: {
+         ip: req.ip,
+         deviceInfo: req.headers["user-agent"],
+         academicSession,
+       },
+     });console.log(`log saved`)
+ 
+   } catch (logError) {
+    console.error(`LogError`,logError)
+   }
+    res.status(200).json({ data: fees });
+  } catch (error) {
+    console.error("Error fetching fees:", {
+      event: "fetch_fees_error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const deleteFee = async (req, res) => {
+  let session = null;
+  try {
+    const schoolId = req.user.id;
+    const feeId = req.params.id;
+
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    const fee = await FeeModel.findOne({ _id: feeId, schoolId }).session(
+      session
+    );
+    if (!fee) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Fee not found" });
+    }
+
+    const assignments = await FeeAssignmentModel.find({ feeId }).session(
+      session
+    );
+    if (assignments.length > 0) {
+      await session.abortTransaction();
+      return res
+        .status(400)
+        .json({ message: "Cannot delete fee with existing assignments" });
+    }
+
+    await FeeModel.deleteOne({ _id: feeId, schoolId }).session(session);
+
+    await TransactionLogModel.create({
+      schoolId,
+      action: "fee_deleted",
+      metadata: {
+        ip: req.ip,
+        deviceInfo: req.headers["user-agent"],
+        adminId: schoolId,
+        feeId,
+        feeType: fee.feeType,
+        amount: fee.amount,
+        academicSession: fee.academicSession,
+      },
+    });
+
+    await logActionUtil({
+      entityType: "Fee",
+      entityId: feeId,
+      action: "fee_deleted",
+      actor: schoolId,
+      actorType: "admin",
+      metadata: {
+        ip: req.ip,
+        deviceInfo: req.headers["user-agent"],
+        adminId: schoolId,
+        feeType: fee.feeType,
+        amount: fee.amount,
+        academicSession: fee.academicSession,
+      },
+    });
+
+    await session.commitTransaction();
+    res.status(200).json({ message: "Fee deleted successfully" });
+  } catch (error) {
+    if (session && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error("Error deleting fee:", {
+      event: "delete_fee_error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ message: "Server error", error: error.message });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
+export const getStudentCount = async (req, res) => {
+  try {
+    const schoolId = req.user.id;
+    const { department, yearOfStudy } = req.body;
+
+    if (!department && !yearOfStudy) {
+      return res
+        .status(400)
+        .json({
+          message: "At least one of department or yearOfStudy is required",
+        });
+    }
+
+    const query = { schoolId: new mongoose.Types.ObjectId(schoolId) };
+    if (department) query.department = department;
+    if (yearOfStudy) query.yearOfStudy = yearOfStudy;
+
+    const count = await StudentModel.countDocuments(query);
+
+    await logActionUtil({
+      entityType: "Student",
+      entityId: schoolId,
+      action: "student_count_viewed",
+      actor: schoolId,
+      actorType: "school",
+      metadata: {
+        ip: req.ip,
+        deviceInfo: req.headers["user-agent"],
+        department,
+        yearOfStudy,
+      },
+    });
+
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error("Error counting students:", {
+      event: "count_students_error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };

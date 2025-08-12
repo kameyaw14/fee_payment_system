@@ -34,10 +34,6 @@ const feeAssignmentSchema = new mongoose.Schema(
       enum: ['assigned', 'partially_paid', 'fully_paid', 'overdue'],
       default: 'assigned',
     },
-    dueDate: {
-      type: Date,
-      required: true,
-    },
     amountDue: {
       type: Number,
       required: true,

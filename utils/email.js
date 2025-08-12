@@ -48,14 +48,10 @@ export const sendFailedLoginEmail = async (user, ip, timestamp) => {
       <p>A failed login attempt was detected for your ${type} account.</p>
       <p>Time: ${timestamp.toISOString()}</p>
       <p>IP Address: ${ip}</p>
-      <p style="color: ${school.customFields.receiptBranding.primaryColor}">
+      <p style="color:#1976D2">
         If this was not you, please secure your account.
       </p>
-      ${
-        school.customFields.receiptBranding.logoUrl
-          ? `<img src="${school.customFields.receiptBranding.logoUrl}" alt="School Logo" />`
-          : ""
-      }
+     
     `,
   };
 

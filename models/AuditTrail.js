@@ -30,12 +30,14 @@ const auditLogSchema = new mongoose.Schema(
         'fee_assigned',
         'fee_created',
         'fee_updated',
-        'dashboard_accessed'
+        'dashboard_accessed',
+        'fees_viewed',
+        'fee_deleted'
       ],
     },
     actorType: {
       type: String,
-      enum: ['student', 'admin', 'system'],
+      enum: ['student', 'admin', 'system',],
       required: true,
     },
     actor: {
